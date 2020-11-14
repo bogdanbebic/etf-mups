@@ -4,6 +4,8 @@
 #include <math.h>
 #include "timer.h"
 
+#include <omp.h>
+
 #define DIM 2 /* Two-dimensional system */
 #define X 0   /* x-coordinate subscript */
 #define Y 1   /* y-coordinate subscript */
@@ -62,14 +64,14 @@ int main(int argc, char *argv[])
     Output_state(0, curr, n);
     for (step = 1; step <= n_steps; step++)
     {
-        t = step * delta_t;
         memset(forces, 0, n * sizeof(vect_t));
         for (part = 0; part < n - 1; part++)
             Compute_force(part, forces, curr, n);
         for (part = 0; part < n; part++)
             Update_part(part, forces, curr, n, delta_t);
-        Compute_energy(curr, n, &kinetic_energy, &potential_energy);
     }
+    t = n_steps * delta_t;
+    Compute_energy(curr, n, &kinetic_energy, &potential_energy);
     Output_state(t, curr, n);
 
     printf("   PE = %e, KE = %e, Total Energy = %e\n",
@@ -138,6 +140,7 @@ void Gen_init_cond(struct particle_s curr[], int n)
     double speed = 3.0e4;
 
     srandom(1);
+#pragma omp parallel for
     for (part = 0; part < n; part++)
     {
         curr[part].m = mass;
@@ -172,7 +175,7 @@ void Compute_force(int part, vect_t forces[], struct particle_s curr[],
     double mg;
     vect_t f_part_k;
     double len, len_3, fact;
-
+    // #pragma omp parallel for private(f_part_k, len, len_3, mg, fact)
     for (k = part + 1; k < n; k++)
     {
         f_part_k[X] = curr[part].s[X] - curr[k].s[X];
@@ -184,7 +187,9 @@ void Compute_force(int part, vect_t forces[], struct particle_s curr[],
         f_part_k[X] *= fact;
         f_part_k[Y] *= fact;
 
+        // #pragma omp atomic
         forces[part][X] += f_part_k[X];
+        // #pragma omp atomic
         forces[part][Y] += f_part_k[Y];
         forces[k][X] -= f_part_k[X];
         forces[k][Y] -= f_part_k[Y];
@@ -209,14 +214,16 @@ void Compute_energy(struct particle_s curr[], int n, double *kin_en_p,
     vect_t diff;
     double pe = 0.0, ke = 0.0;
     double dist, speed_sqr;
-
+#pragma omp parallel
+{
+#pragma omp for reduction(+:ke) private(speed_sqr) nowait
     for (i = 0; i < n; i++)
     {
         speed_sqr = curr[i].v[X] * curr[i].v[X] + curr[i].v[Y] * curr[i].v[Y];
         ke += curr[i].m * speed_sqr;
     }
-    ke *= 0.5;
 
+#pragma omp for private(j, dist, diff) reduction(+:pe)
     for (i = 0; i < n - 1; i++)
     {
         for (j = i + 1; j < n; j++)
@@ -227,7 +234,9 @@ void Compute_energy(struct particle_s curr[], int n, double *kin_en_p,
             pe += -G * curr[i].m * curr[j].m / dist;
         }
     }
-
+#pragma omp single
+    ke *= 0.5;
+} // parallel
     *kin_en_p = ke;
     *pot_en_p = pe;
 } /* Compute_energy */

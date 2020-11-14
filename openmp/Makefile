@@ -14,7 +14,7 @@ needle : dz1z4.c
 	$(CC) $(CFLAGS) -o $(@) $(<) -lm
 
 nb : dz1z5.c
-	$(CC) $(CFLAGS) -Inbody -o $(@) $(<) -lm
+	$(CC) $(CFLAGS) -Wno-unused-result -Inbody -o $(@) $(<) -lm
 
 clean :
 	rm pi1 pi2 pi3 needle nb
