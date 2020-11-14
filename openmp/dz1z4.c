@@ -6,6 +6,8 @@
 #include <time.h>
 #include <sys/time.h>
 
+#include <omp.h>
+
 void runTest(int argc, char **argv);
 int maximum(int a, int b, int c)
 {
@@ -97,6 +99,7 @@ void runTest(int argc, char **argv)
 
     srand(time(NULL));
 
+    #pragma omp parallel for collapse(2)
     for (int i = 0; i < max_cols; i++)
     {
         for (int j = 0; j < max_rows; j++)
@@ -107,15 +110,20 @@ void runTest(int argc, char **argv)
 
     printf("Start Needleman-Wunsch\n");
 
+#pragma omp parallel
+{
+#pragma omp for nowait
     for (int i = 1; i < max_rows; i++)
     {
         input_itemsets[i * max_cols] = rand() % 10 + 1;
     }
+#pragma omp for
     for (int j = 1; j < max_cols; j++)
     {
         input_itemsets[j] = rand() % 10 + 1;
     }
-
+}
+    #pragma omp parallel for collapse(2)
     for (int i = 1; i < max_cols; i++)
     {
         for (int j = 1; j < max_rows; j++)
@@ -124,12 +132,23 @@ void runTest(int argc, char **argv)
         }
     }
 
+#pragma omp parallel
+{
+    #pragma omp for nowait
     for (int i = 1; i < max_rows; i++)
         input_itemsets[i * max_cols] = -i * penalty;
+    #pragma omp for
     for (int j = 1; j < max_cols; j++)
         input_itemsets[j] = -j * penalty;
-
+}
+#pragma omp parallel
+{
+#pragma omp single
+{
     printf("Processing top-left matrix\n");
+
+    #pragma omp task private(idx, index)
+    {
     for (int i = 0; i < max_cols - 2; i++)
     {
         for (idx = 0; idx <= i; idx++)
@@ -140,7 +159,11 @@ void runTest(int argc, char **argv)
                                             input_itemsets[index - max_cols] - penalty);
         }
     }
+    } // task
     printf("Processing bottom-right matrix\n");
+
+    #pragma omp task private(idx, index)
+    {
     for (int i = max_cols - 4; i >= 0; i--)
     {
         for (idx = 0; idx <= i; idx++)
@@ -151,7 +174,9 @@ void runTest(int argc, char **argv)
                                             input_itemsets[index - max_cols] - penalty);
         }
     }
-
+    } // task
+} // single
+} // parallel
 #define TRACEBACK
 #ifdef TRACEBACK
 
