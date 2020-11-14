@@ -11,7 +11,7 @@ void Usage(char *prog_name);
 
 int main(int argc, char *argv[])
 {
-    long long n, i, j;
+    long long n, i;
     double factor;
     double sum = 0.0;
 
@@ -22,24 +22,38 @@ int main(int argc, char *argv[])
         Usage(argv[0]);
 
     printf("Before for loop, factor = %f.\n", factor);
-#pragma omp parallel shared(sum)
+    int it;
+    int num_tasks = 8;
+    double sums[num_tasks];
+    double last_factor;
+#pragma omp parallel shared(it, num_tasks, sums)
 {
 #pragma omp single
 {
-    for (j = 0; j < 8; j++)
+    long long int start_i, end_i;
+    for (it = 0; it < num_tasks; it++)
     {
-#pragma omp task firstprivate(i) private(factor)
+        // init start_i, end_i
+        start_i = it * n / num_tasks;
+        end_i = (it + 1) * n / num_tasks;
+#pragma omp task firstprivate(it, start_i, end_i) private(i, factor) shared(sums) shared(last_factor)
 {
-        for (i = j; i < n; i+=8)
-        {
-            factor = (i % 2 == 0) ? 1.0 : -1.0;
-#pragma omp atomic
-            sum += factor / (2 * i + 1);
-        }
+    for (i = start_i; i < end_i; i++)
+    {
+        factor = (i % 2 == 0) ? 1.0 : -1.0;
+        sums[it] += factor / (2 * i + 1);
+    }
+    if (it == num_tasks - 1)
+        last_factor = factor;
 } // task
     }
 } // single
 } // parallel
+    factor = last_factor;
+    for (it = 0; it < num_tasks; it++)
+    {
+        sum += sums[it];
+    }
     printf("After for loop, factor = %f.\n", factor);
 
     sum = 4.0 * sum;
