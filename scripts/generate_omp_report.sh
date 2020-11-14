@@ -34,7 +34,7 @@ while [ "$1" != "" ]; do
         real_times="$real_times$real_time,"
     done 
 
-    python3 ./generate_bar_chart.py $real_times $num_threads_list $program
+    python3 ${root_dir}/scripts/generate_bar_chart.py $real_times $num_threads_list $program
 
     # Shift all the parameters down by one
     shift
