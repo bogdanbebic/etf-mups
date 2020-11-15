@@ -1,0 +1,6 @@
+./openmp/nbody/./nbody ./openmp/nb 100 500 0.01 500 g
+0m0.033s 0m0.029s,0m0.027s,0m0.031s,0m0.036s, 1,2,4,8
+./openmp/nbody/./nbody ./openmp/nb 500 500 0.01 500 g
+0m0.558s 0m0.384s,0m0.368s,0m0.397s,0m0.435s, 1,2,4,8
+./openmp/nbody/./nbody ./openmp/nb 5000 500 0.01 500 g
+0m54.593s 0m34.156s,0m34.055s,0m34.178s,0m34.089s, 1,2,4,8
