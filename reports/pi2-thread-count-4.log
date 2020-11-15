@@ -1,0 +1,5 @@
+Before for loop, factor = 0.000000.
+After for loop, factor = -1.000000.
+With n = 10000000000 terms
+   Our estimate of pi = 3.14159265348827
+   Ref estimate of pi = 3.14159265358979
