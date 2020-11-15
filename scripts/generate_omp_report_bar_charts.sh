@@ -19,7 +19,7 @@ do
     args=`echo $line | cut -d' ' -f2-`
     prog_dir=`dirname $runfile`
     prog="$prog_dir/$prog"
-    $root_dir/scripts/measure_execution_times.sh $execution_times_file $prog $prog_parallel $args
+    $root_dir/scripts/measure_omp_execution_times.sh $execution_times_file $prog $prog_parallel $args
 done
 
 IFS=$oldIFS
