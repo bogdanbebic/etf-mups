@@ -11,16 +11,13 @@ void Usage(char *prog_name);
 
 int main(int argc, char *argv[])
 {
-    long long n, i, thread_cnt;
+    long long n, i;
     double factor;
     double sum = 0.0;
 
-    // revert back to argc != 2
-    // after testing
-    if (argc != 3)
+    if (argc != 2)
         Usage(argv[0]);
     n = strtoll(argv[1], NULL, 10);
-    thread_cnt = strtoll(argv[2], NULL, 10);
 
     if (n < 1)
         Usage(argv[0]);
@@ -28,7 +25,6 @@ int main(int argc, char *argv[])
     printf("Before for loop, factor = %f.\n", factor);
 
     double last_iteration_factor;
-    omp_set_num_threads(thread_cnt);
 
 #pragma omp parallel reduction(+: sum) private(factor, i) shared(last_iteration_factor)
 {
