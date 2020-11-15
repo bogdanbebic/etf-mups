@@ -2,10 +2,10 @@
 
 # ----------
 # Usage:
-# ./generate_omp_report.sh <prog1> <prog2> ... <progn>
+# ./generate_omp_report.sh <prog> <prog_arg1> <prog_arg2> ... <prog_argn>
 #
-# Runs <prog>'s with different OMP thread counts
-# and times their execution. Output of <prog>'s
+# Runs <prog> with different OMP thread counts
+# and times their execution. Output of <prog>
 # is saved to log files with format <prog>-thread-count-<n>.log
 # where <n> is the OMP thread count. Generates a bar chart
 # for every program with execution time with respect to thread count
@@ -20,25 +20,26 @@ python3_venv_dir=${root_dir}/venv
 source $python3_venv_dir/bin/activate
 
 oldIFS=$IFS
-IFS=","
+IFS=", "
 num_threads_list="1,2,4,8"
 
-# Loop until all parameters are used up
-while [ "$1" != "" ]; do
-    program=$1
-    real_times=
-    for num_threads in $num_threads_list;
-    do
-        log_file="$program-thread-count-$num_threads.log"
-        real_time=`{ time OMP_NUM_THREADS=$num_threads $program >$log_file; } 2>&1 | grep real | cut -f2`
-        real_times="$real_times$real_time,"
-    done 
 
-    python3 ${root_dir}/scripts/generate_bar_chart.py $real_times $num_threads_list $program
+program=$1
+# Shift all the parameters down by one
+shift
+args=$@
 
-    # Shift all the parameters down by one
-    shift
-done
+
+real_times=
+for num_threads in $num_threads_list;
+do
+    log_file="$program-thread-count-$num_threads.log"
+    real_time=`{ time OMP_NUM_THREADS=$num_threads $program $args >$log_file; } 2>&1 | grep real | cut -f2`
+    real_times="$real_times$real_time,"
+done 
+
+python3 ${root_dir}/scripts/generate_bar_chart.py $real_times $num_threads_list $program
+
 
 IFS=$oldIFS
 
