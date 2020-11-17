@@ -1,4 +1,3 @@
-#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +50,7 @@ int main(int argc, char *argv[])
     char g_i;                /*_G_en or _i_nput init conds */
     double kinetic_energy, potential_energy;
     double start, finish; /* For timings                */
+
     Get_args(argc, argv, &n, &n_steps, &delta_t, &output_freq, &g_i);
     curr = malloc(n * sizeof(struct particle_s));
     forces = malloc(n * sizeof(vect_t));
@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
         Get_init_cond(curr, n);
     else
         Gen_init_cond(curr, n);
+
     GET_TIME(start);
     Compute_energy(curr, n, &kinetic_energy, &potential_energy);
     printf("   PE = %e, KE = %e, Total Energy = %e\n",
@@ -66,7 +67,7 @@ int main(int argc, char *argv[])
     for (step = 1; step <= n_steps; step++)
     {
         memset(forces, 0, n * sizeof(vect_t));
-        for (part = 0; part < n-1; part++)
+        for (part = 0; part < n - 1; part++)
             Compute_force(part, forces, curr, n);
 // #pragma omp parallel for
 //         for (part = 0; part < n - 1; part++)
