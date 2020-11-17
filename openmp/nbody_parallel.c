@@ -14,6 +14,8 @@ const double G = 6.673e-11;
 
 typedef double vect_t[DIM]; /* Vector type for position, etc. */
 
+// vect_t forces_reduction[4999][5000];
+
 struct particle_s
 {
     double m; /* Mass     */
@@ -67,11 +69,31 @@ int main(int argc, char *argv[])
         memset(forces, 0, n * sizeof(vect_t));
         for (part = 0; part < n - 1; part++)
             Compute_force(part, forces, curr, n);
+// #pragma omp parallel for
+//         for (part = 0; part < n - 1; part++)
+//         {
+//                 memset(forces_reduction[part], 0, n * sizeof(vect_t));
+//                 Compute_force(part, forces_reduction[part], curr, n);
+//         }
+// #pragma omp parallel for
+//         for (int i = 0; i < n - 1; i++)
+//         {
+//             for (int j = 0; j < n; j++)
+//             {
+//                 #pragma omp atomic
+//                 forces[j][X] += forces_reduction[i][j][X];
+//                 #pragma omp atomic
+//                 forces[j][Y] += forces_reduction[i][j][Y];
+//             }
+//         }
+#pragma omp parallel for
         for (part = 0; part < n; part++)
+        {
             Update_part(part, forces, curr, n, delta_t);
+        }
+        t = n_steps * delta_t;
+        Compute_energy(curr, n, &kinetic_energy, &potential_energy);
     }
-    t = n_steps * delta_t;
-    Compute_energy(curr, n, &kinetic_energy, &potential_energy);
     Output_state(t, curr, n);
 
     printf("   PE = %e, KE = %e, Total Energy = %e\n",
@@ -139,7 +161,7 @@ void Gen_init_cond(struct particle_s curr[], int n)
     double gap = 1.0e5;
     double speed = 3.0e4;
 
-    srandom(1);
+    srand(1);
 #pragma omp parallel for
     for (part = 0; part < n; part++)
     {
