@@ -1,0 +1,10 @@
+../openmp/piCalculation/./piCalc ../openmp/pi1 1000000
+0m0.010s 0m0.011s,0m0.012s,0m0.012s,0m0.012s, 1,2,4,8
+../openmp/piCalculation/./piCalc ../openmp/pi1 10000000
+0m0.023s 0m0.024s,0m0.020s,0m0.017s,0m0.022s, 1,2,4,8
+../openmp/piCalculation/./piCalc ../openmp/pi1 100000000
+0m0.149s 0m0.151s,0m0.080s,0m0.050s,0m0.059s, 1,2,4,8
+../openmp/piCalculation/./piCalc ../openmp/pi1 1000000000
+0m1.419s 0m1.422s,0m0.711s,0m0.512s,0m0.373s, 1,2,4,8
+../openmp/piCalculation/./piCalc ../openmp/pi1 10000000000
+0m13.891s 0m14.171s,0m7.210s,0m4.427s,0m3.888s, 1,2,4,8

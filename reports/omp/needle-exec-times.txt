@@ -1,0 +1,8 @@
+./openmp/nw/./needle ./openmp/needle 2048 10
+0m0.164s 0m0.143s,0m0.126s,0m0.135s,0m0.173s, 1,2,4,8
+./openmp/nw/./needle ./openmp/needle 6144 10
+0m1.351s 0m1.347s,0m1.168s,0m1.199s,0m1.238s, 1,2,4,8
+./openmp/nw/./needle ./openmp/needle 16384 10
+0m11.107s 0m11.415s,0m9.603s,0m10.081s,0m10.563s, 1,2,4,8
+./openmp/nw/./needle ./openmp/needle 22528 10
+0m23.173s 0m23.632s,0m20.672s,0m21.317s,0m21.202s, 1,2,4,8
