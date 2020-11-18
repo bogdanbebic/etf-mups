@@ -141,14 +141,9 @@ void runTest(int argc, char **argv)
     for (int j = 1; j < max_cols; j++)
         input_itemsets[j] = -j * penalty;
 }
-#pragma omp parallel
-{
-#pragma omp single
-{
+
     printf("Processing top-left matrix\n");
 
-    #pragma omp task private(idx, index)
-    {
     for (int i = 0; i < max_cols - 2; i++)
     {
         for (idx = 0; idx <= i; idx++)
@@ -159,11 +154,8 @@ void runTest(int argc, char **argv)
                                             input_itemsets[index - max_cols] - penalty);
         }
     }
-    } // task
     printf("Processing bottom-right matrix\n");
 
-    #pragma omp task private(idx, index)
-    {
     for (int i = max_cols - 4; i >= 0; i--)
     {
         for (idx = 0; idx <= i; idx++)
@@ -174,9 +166,7 @@ void runTest(int argc, char **argv)
                                             input_itemsets[index - max_cols] - penalty);
         }
     }
-    } // task
-} // single
-} // parallel
+
 #define TRACEBACK
 #ifdef TRACEBACK
 
