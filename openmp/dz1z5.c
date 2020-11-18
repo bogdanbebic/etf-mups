@@ -10,9 +10,9 @@
 
 typedef struct
 {
-    double potential_energy;
-    double kinetic_energy;
-    double total_energy;
+    long double potential_energy;
+    long double kinetic_energy;
+    long double total_energy;
 } result_t;
 
 #define DIM 2 /* Two-dimensional system */
