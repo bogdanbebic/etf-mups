@@ -1,0 +1,16 @@
+---------------------Sequential execution---------------------
+Before for loop, factor = 0.000000.
+After for loop, factor = -1.000000.
+With n = 1000000000 terms
+   Our estimate of pi = 3.14159265258805
+   Ref estimate of pi = 3.14159265358979
+----------------------Parallel execution----------------------
+Before for loop, factor = 0.000000.
+After for loop, factor = -1.000000.
+With n = 1000000000 terms
+   Our estimate of pi = 3.14159265258932
+   Ref estimate of pi = 3.14159265358979
+
+Sequential elapsed time: 3.192513s
+Parallel elapsed time: 0.797299s
+Test PASSED
