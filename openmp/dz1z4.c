@@ -63,7 +63,7 @@ double gettime()
     return t.tv_sec + t.tv_usec * 1e-6;
 }
 
-int * sequential_solution(int argc, char *argv[])
+int *sequential_solution(int argc, char *argv[])
 {
     int max_rows, max_cols, penalty, idx, index;
     int *input_itemsets, *output_itemsets, *referrence;
@@ -90,7 +90,7 @@ int * sequential_solution(int argc, char *argv[])
     if (!input_itemsets)
         fprintf(stderr, "error: can not allocate memory");
 
-    srand(time(NULL));
+    srand(1);
 
     for (int i = 0; i < max_cols; i++)
     {
@@ -227,11 +227,11 @@ int * sequential_solution(int argc, char *argv[])
     free(referrence);
     // free(input_itemsets);
     free(output_itemsets);
-    
+
     return input_itemsets;
 }
 
-int * parallel_solution(int argc, char *argv[])
+int *parallel_solution(int argc, char *argv[])
 {
     int max_rows, max_cols, penalty, idx, index;
     int *input_itemsets, *output_itemsets, *referrence;
@@ -258,7 +258,7 @@ int * parallel_solution(int argc, char *argv[])
     if (!input_itemsets)
         fprintf(stderr, "error: can not allocate memory");
 
-    srand(time(NULL));
+    srand(1);
 
 #pragma omp parallel for collapse(2)
     for (int i = 0; i < max_cols; i++)
@@ -271,19 +271,15 @@ int * parallel_solution(int argc, char *argv[])
 
     printf("Start Needleman-Wunsch\n");
 
-#pragma omp parallel
+    for (int i = 1; i < max_rows; i++)
     {
-#pragma omp for nowait
-        for (int i = 1; i < max_rows; i++)
-        {
-            input_itemsets[i * max_cols] = rand() % 10 + 1;
-        }
-#pragma omp for
-        for (int j = 1; j < max_cols; j++)
-        {
-            input_itemsets[j] = rand() % 10 + 1;
-        }
+        input_itemsets[i * max_cols] = rand() % 10 + 1;
     }
+    for (int j = 1; j < max_cols; j++)
+    {
+        input_itemsets[j] = rand() % 10 + 1;
+    }
+
 #pragma omp parallel for collapse(2)
     for (int i = 1; i < max_cols; i++)
     {
@@ -302,42 +298,32 @@ int * parallel_solution(int argc, char *argv[])
         for (int j = 1; j < max_cols; j++)
             input_itemsets[j] = -j * penalty;
     }
-#pragma omp parallel
+
+    printf("Processing top-left matrix\n");
+
+    for (int i = 0; i < max_cols - 2; i++)
     {
-#pragma omp single
+        for (idx = 0; idx <= i; idx++)
         {
-            printf("Processing top-left matrix\n");
+            index = (idx + 1) * max_cols + (i + 1 - idx);
+            input_itemsets[index] = maximum(input_itemsets[index - 1 - max_cols] + referrence[index],
+                                            input_itemsets[index - 1] - penalty,
+                                            input_itemsets[index - max_cols] - penalty);
+        }
+    }
 
-#pragma omp task private(idx, index)
-            {
-                for (int i = 0; i < max_cols - 2; i++)
-                {
-                    for (idx = 0; idx <= i; idx++)
-                    {
-                        index = (idx + 1) * max_cols + (i + 1 - idx);
-                        input_itemsets[index] = maximum(input_itemsets[index - 1 - max_cols] + referrence[index],
-                                                        input_itemsets[index - 1] - penalty,
-                                                        input_itemsets[index - max_cols] - penalty);
-                    }
-                }
-            } // task
-            printf("Processing bottom-right matrix\n");
+    printf("Processing bottom-right matrix\n");
 
-#pragma omp task private(idx, index)
-            {
-                for (int i = max_cols - 4; i >= 0; i--)
-                {
-                    for (idx = 0; idx <= i; idx++)
-                    {
-                        index = (max_cols - idx - 2) * max_cols + idx + max_cols - i - 2;
-                        input_itemsets[index] = maximum(input_itemsets[index - 1 - max_cols] + referrence[index],
-                                                        input_itemsets[index - 1] - penalty,
-                                                        input_itemsets[index - max_cols] - penalty);
-                    }
-                }
-            } // task
-        }     // single
-    }         // parallel
+    for (int i = max_cols - 4; i >= 0; i--)
+    {
+        for (idx = 0; idx <= i; idx++)
+        {
+            index = (max_cols - idx - 2) * max_cols + idx + max_cols - i - 2;
+            input_itemsets[index] = maximum(input_itemsets[index - 1 - max_cols] + referrence[index],
+                                            input_itemsets[index - 1] - penalty,
+                                            input_itemsets[index - max_cols] - penalty);
+        }
+    }
 #define TRACEBACK
 #ifdef TRACEBACK
 
@@ -422,7 +408,7 @@ int * parallel_solution(int argc, char *argv[])
     return input_itemsets;
 }
 
-int compare_arr(int * arr1, int * arr2, int n)
+int compare_arr(int *arr1, int *arr2, int n)
 {
     for (int i = 0; i < n; i++)
         if (arr1[i] != arr2[i])
@@ -435,17 +421,17 @@ int main(int argc, char **argv)
 {
     printf("---------------------Sequential execution---------------------\n");
     double start_time_seq = omp_get_wtime();
-    int * ret_seq = sequential_solution(argc, argv);
+    int *ret_seq = sequential_solution(argc, argv);
     double end_time_seq = omp_get_wtime();
 
     printf("----------------------Parallel execution----------------------\n");
     double start_time_parallel = omp_get_wtime();
-    int * ret_par = parallel_solution(argc, argv);
+    int *ret_par = parallel_solution(argc, argv);
     double end_time_parallel = omp_get_wtime();
 
     printf("\nSequential elapsed time: %lfs\n", end_time_seq - start_time_seq);
     printf("Parallel elapsed time: %lfs\n", end_time_parallel - start_time_parallel);
-    
+
     int max_rows, max_cols;
     if (argc == 3)
         max_cols = max_rows = atoi(argv[1]);
@@ -453,7 +439,7 @@ int main(int argc, char **argv)
     max_rows++;
     max_cols++;
 
-    if (compare_arr(traceback_seq, traceback_par, N))
+    if (compare_arr(ret_seq, ret_par, max_rows * max_cols) && compare_arr(traceback_seq, traceback_par, N))
         printf("Test PASSED\n");
     else
         printf("Test FAILED\n");
