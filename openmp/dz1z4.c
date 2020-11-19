@@ -303,6 +303,7 @@ int *parallel_solution(int argc, char *argv[])
 
     for (int i = 0; i < max_cols - 2; i++)
     {
+        #pragma omp parallel for private(index)
         for (idx = 0; idx <= i; idx++)
         {
             index = (idx + 1) * max_cols + (i + 1 - idx);
@@ -316,6 +317,7 @@ int *parallel_solution(int argc, char *argv[])
 
     for (int i = max_cols - 4; i >= 0; i--)
     {
+        #pragma omp parallel for private(index)
         for (idx = 0; idx <= i; idx++)
         {
             index = (max_cols - idx - 2) * max_cols + idx + max_cols - i - 2;

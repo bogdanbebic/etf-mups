@@ -6,14 +6,8 @@
 
 #include <omp.h>
 
-#define ACCURACY 0.01
-
-typedef struct
-{
-    long double potential_energy;
-    long double kinetic_energy;
-    long double total_energy;
-} result_t;
+char res_seq[100];
+char res_par[100];
 
 #define DIM 2 /* Two-dimensional system */
 #define X 0   /* x-coordinate subscript */
@@ -40,12 +34,14 @@ void Gen_init_cond(struct particle_s curr[], int n);
 void Output_state(double time, struct particle_s curr[], int n);
 void Compute_force(int part, vect_t forces[], struct particle_s curr[],
                    int n);
+void Compute_force_parallel(int part, vect_t forces[], struct particle_s curr[],
+                            int n);
 void Update_part(int part, vect_t forces[], struct particle_s curr[],
                  int n, double delta_t);
 void Compute_energy(struct particle_s curr[], int n, double *kin_en_p,
                     double *pot_en_p);
 
-result_t sequential_solution(int argc, char *argv[])
+void sequential_solution(int argc, char *argv[])
 {
     int n;                   /* Number of particles        */
     int n_steps;             /* Number of timesteps        */
@@ -87,17 +83,16 @@ result_t sequential_solution(int argc, char *argv[])
 
     printf("   PE = %e, KE = %e, Total Energy = %e\n",
            potential_energy, kinetic_energy, kinetic_energy + potential_energy);
-
+    sprintf(res_seq, "   PE = %e, KE = %e, Total Energy = %e\n",
+            potential_energy, kinetic_energy, kinetic_energy + potential_energy);
     GET_TIME(finish);
     printf("Elapsed time = %e seconds\n", finish - start);
 
     free(curr);
     free(forces);
-    result_t res = { potential_energy, kinetic_energy, kinetic_energy + potential_energy };
-    return res;
 } /* sequential_solution */
 
-result_t parallel_solution(int argc, char *argv[])
+void parallel_solution(int argc, char *argv[])
 {
     int n;                   /* Number of particles        */
     int n_steps;             /* Number of timesteps        */
@@ -129,7 +124,7 @@ result_t parallel_solution(int argc, char *argv[])
     {
         memset(forces, 0, n * sizeof(vect_t));
         for (part = 0; part < n - 1; part++)
-            Compute_force(part, forces, curr, n);
+            Compute_force_parallel(part, forces, curr, n);
 // #pragma omp parallel for
 //         for (part = 0; part < n - 1; part++)
 //         {
@@ -152,46 +147,43 @@ result_t parallel_solution(int argc, char *argv[])
         {
             Update_part(part, forces, curr, n, delta_t);
         }
+        t = n_steps * delta_t;
+        Compute_energy(curr, n, &kinetic_energy, &potential_energy);
     }
-    t = n_steps * delta_t;
-    Compute_energy(curr, n, &kinetic_energy, &potential_energy);
     Output_state(t, curr, n);
 
     printf("   PE = %e, KE = %e, Total Energy = %e\n",
            potential_energy, kinetic_energy, kinetic_energy + potential_energy);
-
+    sprintf(res_par, "   PE = %e, KE = %e, Total Energy = %e\n",
+            potential_energy, kinetic_energy, kinetic_energy + potential_energy);
     GET_TIME(finish);
     printf("Elapsed time = %e seconds\n", finish - start);
 
     free(curr);
     free(forces);
-    result_t res = { potential_energy, kinetic_energy, kinetic_energy + potential_energy };
-    return res;
 } /* parallel_solution */
 
-int compare_results(result_t result_seq, result_t result_parallel)
+int compare_results(void)
 {
-    return fabs(result_seq.kinetic_energy - result_parallel.kinetic_energy) < ACCURACY
-           && fabs(result_seq.potential_energy - result_parallel.potential_energy) < ACCURACY
-           && fabs(result_seq.total_energy - result_parallel.total_energy) < ACCURACY;
+    return !strcmp(res_seq, res_par);
 }
 
 int main(int argc, char *argv[])
 {
     printf("---------------------Sequential execution---------------------\n");
     double start_time_seq = omp_get_wtime();
-    result_t result_seq = sequential_solution(argc, argv);
+    sequential_solution(argc, argv);
     double end_time_seq = omp_get_wtime();
 
     printf("----------------------Parallel execution----------------------\n");
     double start_time_parallel = omp_get_wtime();
-    result_t result_parallel = parallel_solution(argc, argv);
+    parallel_solution(argc, argv);
     double end_time_parallel = omp_get_wtime();
 
     printf("\nSequential elapsed time: %lfs\n", end_time_seq - start_time_seq);
     printf("Parallel elapsed time: %lfs\n", end_time_parallel - start_time_parallel);
 
-    if (compare_results(result_seq, result_parallel))
+    if (compare_results())
         printf("Test PASSED\n");
     else
         printf("Test FAILED\n");
@@ -309,6 +301,38 @@ void Compute_force(int part, vect_t forces[], struct particle_s curr[],
         forces[k][Y] -= f_part_k[Y];
     }
 } /* Compute_force */
+
+void Compute_force_parallel(int part, vect_t forces[], struct particle_s curr[],
+                            int n)
+{
+    int k;
+    double mg;
+    vect_t f_part_k;
+    double len, len_3, fact;
+    double forces_part_x = 0.0;
+    double forces_part_y = 0.0;
+#pragma omp parallel for private(f_part_k, len, len_3, mg, fact) reduction(+:forces_part_x,forces_part_y)
+    for (k = part + 1; k < n; k++)
+    {
+        f_part_k[X] = curr[part].s[X] - curr[k].s[X];
+        f_part_k[Y] = curr[part].s[Y] - curr[k].s[Y];
+        len = sqrt(f_part_k[X] * f_part_k[X] + f_part_k[Y] * f_part_k[Y]);
+        len_3 = len * len * len;
+        mg = -G * curr[part].m * curr[k].m;
+        fact = mg / len_3;
+        f_part_k[X] *= fact;
+        f_part_k[Y] *= fact;
+
+        // forces[part][X] += f_part_k[X];
+        forces_part_x += f_part_k[X];
+        // forces[part][Y] += f_part_k[Y];
+        forces_part_y += f_part_k[Y];
+        forces[k][X] -= f_part_k[X];
+        forces[k][Y] -= f_part_k[Y];
+    }
+    forces[part][X] += forces_part_x;
+    forces[part][Y] += forces_part_y;
+} /* Compute_force_parallel */
 
 void Update_part(int part, vect_t forces[], struct particle_s curr[],
                  int n, double delta_t)
