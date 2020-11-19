@@ -197,7 +197,9 @@ void Compute_force(int part, vect_t forces[], struct particle_s curr[],
     double mg;
     vect_t f_part_k;
     double len, len_3, fact;
-    // #pragma omp parallel for private(f_part_k, len, len_3, mg, fact)
+    double forces_part_x = 0.0;
+    double forces_part_y = 0.0;
+#pragma omp parallel for private(f_part_k, len, len_3, mg, fact) reduction(+:forces_part_x,forces_part_y)
     for (k = part + 1; k < n; k++)
     {
         f_part_k[X] = curr[part].s[X] - curr[k].s[X];
@@ -209,13 +211,15 @@ void Compute_force(int part, vect_t forces[], struct particle_s curr[],
         f_part_k[X] *= fact;
         f_part_k[Y] *= fact;
 
-        // #pragma omp atomic
-        forces[part][X] += f_part_k[X];
-        // #pragma omp atomic
-        forces[part][Y] += f_part_k[Y];
+        // forces[part][X] += f_part_k[X];
+        forces_part_x += f_part_k[X];
+        // forces[part][Y] += f_part_k[Y];
+        forces_part_y += f_part_k[Y];
         forces[k][X] -= f_part_k[X];
         forces[k][Y] -= f_part_k[Y];
     }
+    forces[part][X] += forces_part_x;
+    forces[part][Y] += forces_part_y;
 } /* Compute_force */
 
 void Update_part(int part, vect_t forces[], struct particle_s curr[],
