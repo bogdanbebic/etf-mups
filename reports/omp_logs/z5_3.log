@@ -10005,7 +10005,7 @@
 4999  4.996e+08    1.513e+05   -7.251e+04    2.372e+04
 
    PE = -6.649074e+38, KE = 2.481116e+36, Total Energy = -6.624263e+38
-Elapsed time = 5.424966e+01 seconds
+Elapsed time = 5.416640e+01 seconds
 ----------------------Parallel execution----------------------
    PE = -6.751832e+38, KE = 1.125000e+37, Total Energy = -6.639332e+38
 0.00
@@ -20013,8 +20013,8 @@ Elapsed time = 5.424966e+01 seconds
 4999  4.996e+08    1.513e+05   -7.251e+04    2.372e+04
 
    PE = -6.649074e+38, KE = 2.481116e+36, Total Energy = -6.624263e+38
-Elapsed time = 4.111256e+01 seconds
+Elapsed time = 2.794771e+01 seconds
 
-Sequential elapsed time: 54.251322s
-Parallel elapsed time: 41.113632s
+Sequential elapsed time: 54.167515s
+Parallel elapsed time: 27.947755s
 Test PASSED

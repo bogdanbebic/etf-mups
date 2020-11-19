@@ -7,6 +7,6 @@ Start Needleman-Wunsch
 Processing top-left matrix
 Processing bottom-right matrix
 
-Sequential elapsed time: 0.076494s
-Parallel elapsed time: 0.085481s
+Sequential elapsed time: 0.110103s
+Parallel elapsed time: 0.034839s
 Test PASSED
