@@ -1,0 +1,4 @@
+./needle 2048 10
+./needle 6144 10
+./needle 16384 10
+./needle 22528 10
