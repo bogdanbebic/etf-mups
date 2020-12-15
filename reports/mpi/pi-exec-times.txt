@@ -1,0 +1,10 @@
+./mpi/piCalculation/./piCalc ./mpi/pi 1000000
+0m0.010s 0m0.483s,0m0.451s,0m0.802s, 1,2,4
+./mpi/piCalculation/./piCalc ./mpi/pi 10000000
+0m0.022s 0m0.435s,0m0.446s,0m0.469s, 1,2,4
+./mpi/piCalculation/./piCalc ./mpi/pi 100000000
+0m0.145s 0m0.557s,0m0.524s,0m0.540s, 1,2,4
+./mpi/piCalculation/./piCalc ./mpi/pi 1000000000
+0m1.393s 0m1.853s,0m1.180s,0m0.989s, 1,2,4
+./mpi/piCalculation/./piCalc ./mpi/pi 10000000000
+0m13.821s 0m14.206s,0m7.590s,0m5.366s, 1,2,4
