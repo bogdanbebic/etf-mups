@@ -1,3 +1,5 @@
+#include <mpi.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,6 +34,17 @@ void Update_part(int part, vect_t forces[], struct particle_s curr[],
 void Compute_energy(struct particle_s curr[], int n, double *kin_en_p,
                     double *pot_en_p);
 
+int rank, size;
+MPI_Datatype particle_s_type;
+MPI_Datatype vect_t_type;
+
+enum Tags
+{
+    TAG_CURR = 1000,
+    TAG_FORCES_SEND,
+    TAG_FORCES,
+};
+
 int main(int argc, char *argv[])
 {
     int n;                   /* Number of particles        */
@@ -47,39 +60,71 @@ int main(int argc, char *argv[])
     double kinetic_energy, potential_energy;
     double start, finish; /* For timings                */
 
-    Get_args(argc, argv, &n, &n_steps, &delta_t, &output_freq, &g_i);
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
     curr = malloc(n * sizeof(struct particle_s));
     forces = malloc(n * sizeof(vect_t));
-    if (g_i == 'i')
-        Get_init_cond(curr, n);
-    else
-        Gen_init_cond(curr, n);
 
-    GET_TIME(start);
-    Compute_energy(curr, n, &kinetic_energy, &potential_energy);
-    printf("   PE = %e, KE = %e, Total Energy = %e\n",
-           potential_energy, kinetic_energy, kinetic_energy + potential_energy);
-    Output_state(0, curr, n);
+    // define types for communication
+    MPI_Type_contiguous(sizeof(vect_t) / sizeof(double),
+                        MPI_DOUBLE, &vect_t_type);
+    MPI_Type_commit(&vect_t_type);
+    MPI_Type_contiguous(sizeof(struct particle_s) / sizeof(double),
+                        MPI_DOUBLE, &particle_s_type);
+    MPI_Type_commit(&particle_s_type);
+
+    if (rank == 0)
+    {
+        Get_args(argc, argv, &n, &n_steps, &delta_t, &output_freq, &g_i);
+        if (g_i == 'i')
+            Get_init_cond(curr, n);
+        else
+            Gen_init_cond(curr, n);
+
+        GET_TIME(start);
+        Compute_energy(curr, n, &kinetic_energy, &potential_energy);
+        printf("   PE = %e, KE = %e, Total Energy = %e\n",
+               potential_energy, kinetic_energy, kinetic_energy + potential_energy);
+        Output_state(0, curr, n);
+    }
+
+    MPI_Bcast(&n_steps, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&delta_t, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
     for (step = 1; step <= n_steps; step++)
     {
-        t = step * delta_t;
         memset(forces, 0, n * sizeof(vect_t));
         for (part = 0; part < n - 1; part++)
             Compute_force(part, forces, curr, n);
-        for (part = 0; part < n; part++)
-            Update_part(part, forces, curr, n, delta_t);
-        Compute_energy(curr, n, &kinetic_energy, &potential_energy);
+        if (rank == 0)
+            for (part = 0; part < n; part++)
+                Update_part(part, forces, curr, n, delta_t);
     }
-    Output_state(t, curr, n);
 
-    printf("   PE = %e, KE = %e, Total Energy = %e\n",
-           potential_energy, kinetic_energy, kinetic_energy + potential_energy);
+    if (rank == 0)
+    {
+        t = step * delta_t;
+        Compute_energy(curr, n, &kinetic_energy, &potential_energy);
+        Output_state(t, curr, n);
 
-    GET_TIME(finish);
-    printf("Elapsed time = %e seconds\n", finish - start);
+        printf("   PE = %e, KE = %e, Total Energy = %e\n",
+               potential_energy, kinetic_energy, kinetic_energy + potential_energy);
+
+        GET_TIME(finish);
+        printf("Elapsed time = %e seconds\n", finish - start);
+    }
 
     free(curr);
     free(forces);
+
+    MPI_Type_free(&vect_t_type);
+    MPI_Type_free(&particle_s_type);
+    MPI_Finalize();
+
     return 0;
 } /* main */
 
@@ -173,7 +218,41 @@ void Compute_force(int part, vect_t forces[], struct particle_s curr[],
     vect_t f_part_k;
     double len, len_3, fact;
 
-    for (k = part + 1; k < n; k++)
+    double forces_part_x = 0.0, forces_part_y = 0.0;
+    double forces_part_x_reduced = 0.0, forces_part_y_reduced = 0.0;
+
+    int k_start, k_end;
+    int chunk = (n - (part + 1)) / size;
+
+    k_start = part + 1 + rank * chunk;
+    k_end = k_start + chunk;
+    if (size > 1 && rank == size - 1)
+    {
+        k_end = n;
+        chunk = k_end - k_start;
+    }
+
+    if (rank == 0)
+    {
+        for (int i = 1; i < size - 1; i++)
+        {
+            MPI_Send(curr + part + 1 + i * chunk, chunk, particle_s_type, i, TAG_CURR, MPI_COMM_WORLD);
+            MPI_Send(forces + part + 1 + i * chunk, chunk, vect_t_type, i, TAG_FORCES_SEND, MPI_COMM_WORLD);
+        }
+        if (size > 1)
+        {
+            int buff_size = n - (part + 1 + (size - 1) * chunk);
+            MPI_Send(curr + part + 1 + (size - 1) * chunk, buff_size, particle_s_type, (size - 1), TAG_CURR, MPI_COMM_WORLD);
+            MPI_Send(forces + part + 1 + (size - 1) * chunk, buff_size, vect_t_type, (size - 1), TAG_FORCES_SEND, MPI_COMM_WORLD);
+        }
+    }
+    else
+    {
+        MPI_Recv(curr + k_start, chunk, particle_s_type, 0, TAG_CURR, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(forces + k_start, chunk, vect_t_type, 0, TAG_FORCES_SEND, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+
+    for (k = k_start; k < k_end; k++)
     {
         f_part_k[X] = curr[part].s[X] - curr[k].s[X];
         f_part_k[Y] = curr[part].s[Y] - curr[k].s[Y];
@@ -184,10 +263,35 @@ void Compute_force(int part, vect_t forces[], struct particle_s curr[],
         f_part_k[X] *= fact;
         f_part_k[Y] *= fact;
 
-        forces[part][X] += f_part_k[X];
-        forces[part][Y] += f_part_k[Y];
+        // forces[part][X] += f_part_k[X];
+        // forces[part][Y] += f_part_k[Y];
+        forces_part_x += f_part_k[X];
+        forces_part_y += f_part_k[Y];
         forces[k][X] -= f_part_k[X];
         forces[k][Y] -= f_part_k[Y];
+    }
+
+    MPI_Reduce(&forces_part_x, &forces_part_x_reduced, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&forces_part_y, &forces_part_y_reduced, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    if (rank == 0)
+    {
+        for (int i = 1; i < size - 1; i++)
+        {
+            MPI_Recv(forces + part + 1 + i * chunk, chunk, vect_t_type, i, TAG_FORCES, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+        if (size > 1)
+        {
+            int buff_size = n - (part + 1 + (size - 1) * chunk);
+            MPI_Recv(forces + part + 1 + (size - 1) * chunk, buff_size, vect_t_type, (size - 1), TAG_FORCES, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+
+        forces[part][X] += forces_part_x_reduced;
+        forces[part][Y] += forces_part_y_reduced;
+    }
+    else
+    {
+        MPI_Send(forces + k_start, chunk, vect_t_type, 0, TAG_FORCES, MPI_COMM_WORLD);
     }
 } /* Compute_force */
 
