@@ -65,9 +65,6 @@ int main(int argc, char *argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    curr = malloc(n * sizeof(struct particle_s));
-    forces = malloc(n * sizeof(vect_t));
-
     // define types for communication
     MPI_Type_contiguous(sizeof(vect_t) / sizeof(double),
                         MPI_DOUBLE, &vect_t_type);
@@ -79,6 +76,9 @@ int main(int argc, char *argv[])
     if (rank == 0)
     {
         Get_args(argc, argv, &n, &n_steps, &delta_t, &output_freq, &g_i);
+        curr = malloc(n * sizeof(struct particle_s));
+        forces = malloc(n * sizeof(vect_t));
+
         if (g_i == 'i')
             Get_init_cond(curr, n);
         else
@@ -95,6 +95,12 @@ int main(int argc, char *argv[])
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&delta_t, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
+    if (rank != 0)
+    {
+        curr = malloc(n * sizeof(struct particle_s));
+        forces = malloc(n * sizeof(vect_t));
+    }
+    
     vect_t *forces_reduced = malloc(n * sizeof(vect_t));
     for (step = 1; step <= n_steps; step++)
     {
