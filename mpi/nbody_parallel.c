@@ -95,14 +95,29 @@ int main(int argc, char *argv[])
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&delta_t, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
+    vect_t *forces_reduced = malloc(n * sizeof(vect_t));
     for (step = 1; step <= n_steps; step++)
     {
+        int part_start, part_end;
+        int chunk;
+
         memset(forces, 0, n * sizeof(vect_t));
-        for (part = 0; part < n - 1; part++)
+
+        MPI_Bcast(curr, n, particle_s_type, 0, MPI_COMM_WORLD);
+        chunk = (n - 1) / size;
+        part_start = rank * chunk;
+        part_end = part_start + chunk;
+        if (rank == size - 1)
+            part_end = n - 1;
+
+        for (part = part_start; part < part_end; part++)
             Compute_force(part, forces, curr, n);
+
+        MPI_Reduce(forces, forces_reduced, n * 2, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
         if (rank == 0)
             for (part = 0; part < n; part++)
-                Update_part(part, forces, curr, n, delta_t);
+                Update_part(part, forces_reduced, curr, n, delta_t);
     }
 
     if (rank == 0)
@@ -120,6 +135,7 @@ int main(int argc, char *argv[])
 
     free(curr);
     free(forces);
+    free(forces_reduced);
 
     MPI_Type_free(&vect_t_type);
     MPI_Type_free(&particle_s_type);
@@ -218,41 +234,7 @@ void Compute_force(int part, vect_t forces[], struct particle_s curr[],
     vect_t f_part_k;
     double len, len_3, fact;
 
-    double forces_part_x = 0.0, forces_part_y = 0.0;
-    double forces_part_x_reduced = 0.0, forces_part_y_reduced = 0.0;
-
-    int k_start, k_end;
-    int chunk = (n - (part + 1)) / size;
-
-    k_start = part + 1 + rank * chunk;
-    k_end = k_start + chunk;
-    if (size > 1 && rank == size - 1)
-    {
-        k_end = n;
-        chunk = k_end - k_start;
-    }
-
-    if (rank == 0)
-    {
-        for (int i = 1; i < size - 1; i++)
-        {
-            MPI_Send(curr + part + 1 + i * chunk, chunk, particle_s_type, i, TAG_CURR, MPI_COMM_WORLD);
-            MPI_Send(forces + part + 1 + i * chunk, chunk, vect_t_type, i, TAG_FORCES_SEND, MPI_COMM_WORLD);
-        }
-        if (size > 1)
-        {
-            int buff_size = n - (part + 1 + (size - 1) * chunk);
-            MPI_Send(curr + part + 1 + (size - 1) * chunk, buff_size, particle_s_type, (size - 1), TAG_CURR, MPI_COMM_WORLD);
-            MPI_Send(forces + part + 1 + (size - 1) * chunk, buff_size, vect_t_type, (size - 1), TAG_FORCES_SEND, MPI_COMM_WORLD);
-        }
-    }
-    else
-    {
-        MPI_Recv(curr + k_start, chunk, particle_s_type, 0, TAG_CURR, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(forces + k_start, chunk, vect_t_type, 0, TAG_FORCES_SEND, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    }
-
-    for (k = k_start; k < k_end; k++)
+    for (k = part + 1; k < n; k++)
     {
         f_part_k[X] = curr[part].s[X] - curr[k].s[X];
         f_part_k[Y] = curr[part].s[Y] - curr[k].s[Y];
@@ -263,35 +245,10 @@ void Compute_force(int part, vect_t forces[], struct particle_s curr[],
         f_part_k[X] *= fact;
         f_part_k[Y] *= fact;
 
-        // forces[part][X] += f_part_k[X];
-        // forces[part][Y] += f_part_k[Y];
-        forces_part_x += f_part_k[X];
-        forces_part_y += f_part_k[Y];
+        forces[part][X] += f_part_k[X];
+        forces[part][Y] += f_part_k[Y];
         forces[k][X] -= f_part_k[X];
         forces[k][Y] -= f_part_k[Y];
-    }
-
-    MPI_Reduce(&forces_part_x, &forces_part_x_reduced, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-    MPI_Reduce(&forces_part_y, &forces_part_y_reduced, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-
-    if (rank == 0)
-    {
-        for (int i = 1; i < size - 1; i++)
-        {
-            MPI_Recv(forces + part + 1 + i * chunk, chunk, vect_t_type, i, TAG_FORCES, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-        if (size > 1)
-        {
-            int buff_size = n - (part + 1 + (size - 1) * chunk);
-            MPI_Recv(forces + part + 1 + (size - 1) * chunk, buff_size, vect_t_type, (size - 1), TAG_FORCES, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-
-        forces[part][X] += forces_part_x_reduced;
-        forces[part][Y] += forces_part_y_reduced;
-    }
-    else
-    {
-        MPI_Send(forces + k_start, chunk, vect_t_type, 0, TAG_FORCES, MPI_COMM_WORLD);
     }
 } /* Compute_force */
 
