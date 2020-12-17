@@ -1,0 +1,6 @@
+./mpi/nbody/./nbody ./mpi/nb 100 500 0.01 500 g
+0m0.060s 0m1.528s,0m0.460s,0m0.478s, 1,2,4
+./mpi/nbody/./nbody ./mpi/nb 500 500 0.01 500 g
+0m0.548s 0m0.766s,0m1.011s,0m0.628s, 1,2,4
+./mpi/nbody/./nbody ./mpi/nb 5000 500 0.01 500 g
+0m50.672s 0m31.987s,0m25.271s,0m18.126s, 1,2,4
