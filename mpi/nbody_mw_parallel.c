@@ -1,3 +1,5 @@
+#include <mpi.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,6 +34,19 @@ void Update_part(int part, vect_t forces[], struct particle_s curr[],
 void Compute_energy(struct particle_s curr[], int n, double *kin_en_p,
                     double *pot_en_p);
 
+int rank, size;
+MPI_Datatype particle_s_type;
+MPI_Datatype vect_t_type;
+
+enum Tags
+{
+    TAG_CURR = 1000,
+    TAG_START_IND,
+    TAG_WORK_FINISH,
+    TAG_FORCES_SEND,
+    TAG_FORCES,
+};
+
 int main(int argc, char *argv[])
 {
     int n;                   /* Number of particles        */
@@ -47,39 +62,141 @@ int main(int argc, char *argv[])
     double kinetic_energy, potential_energy;
     double start, finish; /* For timings                */
 
-    Get_args(argc, argv, &n, &n_steps, &delta_t, &output_freq, &g_i);
-    curr = malloc(n * sizeof(struct particle_s));
-    forces = malloc(n * sizeof(vect_t));
-    if (g_i == 'i')
-        Get_init_cond(curr, n);
-    else
-        Gen_init_cond(curr, n);
+    MPI_Init(&argc, &argv);
 
-    GET_TIME(start);
-    Compute_energy(curr, n, &kinetic_energy, &potential_energy);
-    printf("   PE = %e, KE = %e, Total Energy = %e\n",
-           potential_energy, kinetic_energy, kinetic_energy + potential_energy);
-    Output_state(0, curr, n);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    // define types for communication
+    MPI_Type_contiguous(sizeof(vect_t) / sizeof(double),
+                        MPI_DOUBLE, &vect_t_type);
+    MPI_Type_commit(&vect_t_type);
+    MPI_Type_contiguous(sizeof(struct particle_s) / sizeof(double),
+                        MPI_DOUBLE, &particle_s_type);
+    MPI_Type_commit(&particle_s_type);
+
+    if (rank == 0)
+    {
+        Get_args(argc, argv, &n, &n_steps, &delta_t, &output_freq, &g_i);
+        curr = malloc(n * sizeof(struct particle_s));
+        forces = malloc(n * sizeof(vect_t));
+        if (g_i == 'i')
+            Get_init_cond(curr, n);
+        else
+            Gen_init_cond(curr, n);
+        GET_TIME(start);
+        Compute_energy(curr, n, &kinetic_energy, &potential_energy);
+        printf("   PE = %e, KE = %e, Total Energy = %e\n",
+               potential_energy, kinetic_energy, kinetic_energy + potential_energy);
+        Output_state(0, curr, n);
+    }
+
+    MPI_Bcast(&n_steps, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&delta_t, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    if (rank != 0)
+    {
+        curr = malloc(n * sizeof(struct particle_s));
+        forces = malloc(n * sizeof(vect_t));
+    }
+
+    vect_t *forces_reduced = malloc(n * sizeof(vect_t));
+
     for (step = 1; step <= n_steps; step++)
     {
-        t = step * delta_t;
+        int part_start, part_end;
+        int chunk = 50;
+        int particles_done = 0;
+        int end_flag = -1;
+        int current_start = 0;
+
         memset(forces, 0, n * sizeof(vect_t));
-        for (part = 0; part < n - 1; part++)
-            Compute_force(part, forces, curr, n);
-        for (part = 0; part < n; part++)
-            Update_part(part, forces, curr, n, delta_t);
-        Compute_energy(curr, n, &kinetic_energy, &potential_energy);
+        MPI_Bcast(curr, n, particle_s_type, 0, MPI_COMM_WORLD);
+        if (rank == 0)
+        {
+            MPI_Request req;
+            for (int i = 0; i < size - 1; i++)
+            {
+                if (current_start + chunk >= n)
+                {
+                    MPI_Send(&end_flag, 1, MPI_INT,
+                             i + 1, TAG_START_IND,
+                             MPI_COMM_WORLD);
+                }
+                else
+                {
+                    current_start = i * chunk;
+                    MPI_Send(&current_start, 1, MPI_INT,
+                             i + 1, TAG_START_IND, MPI_COMM_WORLD);
+                }
+            }
+            while (particles_done < n)
+            {
+                int worker_finished;
+                MPI_Status status;
+                MPI_Recv(&worker_finished, 1, MPI_INT, MPI_ANY_SOURCE,
+                         TAG_WORK_FINISH, MPI_COMM_WORLD, &status);
+                particles_done += 50;
+                current_start += 50;
+                if (current_start < n)
+                {
+                    MPI_Send(&current_start, 1, MPI_INT,
+                             status.MPI_SOURCE, TAG_START_IND,
+                             MPI_COMM_WORLD);
+                }
+                else
+                {
+                    MPI_Send(&end_flag, 1, MPI_INT,
+                             status.MPI_SOURCE, TAG_START_IND,
+                             MPI_COMM_WORLD);
+                }
+            }
+        }
+        else
+        {
+
+            MPI_Recv(&current_start, 1, MPI_INT, 0, TAG_START_IND, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            while (current_start != -1)
+            {
+                int current_end = current_start + chunk;
+
+                for (part = current_start; part < current_end; part++)
+                    Compute_force(part, forces, curr, n);
+
+                MPI_Send(&current_start, 1, MPI_INT, 0, TAG_WORK_FINISH, MPI_COMM_WORLD);
+                MPI_Recv(&current_start, 1, MPI_INT, 0, TAG_START_IND, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+        }
+
+        MPI_Reduce(forces, forces_reduced, n * 2, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+        if (rank == 0)
+            for (part = 0; part < n; part++)
+                Update_part(part, forces_reduced, curr, n, delta_t);
     }
-    Output_state(t, curr, n);
 
-    printf("   PE = %e, KE = %e, Total Energy = %e\n",
-           potential_energy, kinetic_energy, kinetic_energy + potential_energy);
+    if (rank == 0)
+    {
+        t = step * delta_t;
+        Compute_energy(curr, n, &kinetic_energy, &potential_energy);
+        Output_state(t, curr, n);
 
-    GET_TIME(finish);
-    printf("Elapsed time = %e seconds\n", finish - start);
+        printf("   PE = %e, KE = %e, Total Energy = %e\n",
+               potential_energy, kinetic_energy, kinetic_energy + potential_energy);
+
+        GET_TIME(finish);
+        printf("Elapsed time = %e seconds\n", finish - start);
+    }
 
     free(curr);
     free(forces);
+    free(forces_reduced);
+
+    MPI_Type_free(&vect_t_type);
+    MPI_Type_free(&particle_s_type);
+    MPI_Finalize();
+
     return 0;
 } /* main */
 
@@ -91,7 +208,6 @@ void Usage(char *prog_name)
     fprintf(stderr, "   <g|i>\n");
     fprintf(stderr, "   'g': program should generate init conds\n");
     fprintf(stderr, "   'i': program should get init conds from stdin\n");
-
     exit(0);
 } /* Usage */
 
@@ -136,7 +252,6 @@ void Gen_init_cond(struct particle_s curr[], int n)
     double mass = 5.0e24;
     double gap = 1.0e5;
     double speed = 3.0e4;
-
     srandom(1);
     for (part = 0; part < n; part++)
     {
