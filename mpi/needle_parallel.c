@@ -192,12 +192,9 @@ void runTest(int argc, char **argv)
         if (proc_rank == proc_size - 1)
         {
             idx_end = i + 1;
-            // chunk = idx_end - idx_start + 1;
         }
 
         int send_buffer_idx = 0;
-        // if (proc_rank < proc_size - 1)
-        //     idx_end--;
 
         for (idx = idx_start; idx < idx_end; idx++)
         {
@@ -232,92 +229,126 @@ void runTest(int argc, char **argv)
     printf("Processing bottom-right matrix\n");
     for (int i = max_cols - 4; i >= 0; i--)
     {
-        // TODO
-        for (idx = 0; idx <= i; idx++)
+        MPI_Bcast(input_itemsets, max_rows * max_cols, MPI_INT, 0, MPI_COMM_WORLD);
+
+        int chunk = (i + 1) / proc_size;
+        int idx_start = chunk * proc_rank;
+        int idx_end = idx_start + chunk;
+        if (proc_rank == proc_size - 1)
+        {
+            idx_end = i + 1;
+        }
+
+        int send_buffer_idx = 0;
+
+        for (idx = idx_start; idx < idx_end; idx++)
         {
             index = (max_cols - idx - 2) * max_cols + idx + max_cols - i - 2;
+            send_buffer[send_buffer_idx++] = index;
             input_itemsets[index] = maximum(input_itemsets[index - 1 - max_cols] + referrence[index],
                                             input_itemsets[index - 1] - penalty,
                                             input_itemsets[index - max_cols] - penalty);
+            send_buffer[send_buffer_idx++] = input_itemsets[index];
+        }
+
+        if (proc_rank == 0 && proc_size > 1)
+        {
+            int proc_idx;
+            for (proc_idx = 1; proc_idx < proc_size; proc_idx++)
+            {
+                MPI_Recv(&send_buffer_size, 1, MPI_INT, proc_idx, TAG_SIZE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(send_buffer, send_buffer_size, MPI_INT, proc_idx, TAG_RESULT, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                for (int it = 0; it < send_buffer_size - 1; it += 2)
+                {
+                    input_itemsets[send_buffer[it]] = send_buffer[it + 1];
+                }
+            }
+        }
+        else if (proc_rank != 0)
+        {
+            MPI_Send(&send_buffer_idx, 1, MPI_INT, 0, TAG_SIZE, MPI_COMM_WORLD);
+            MPI_Send(send_buffer, send_buffer_idx, MPI_INT, 0, TAG_RESULT, MPI_COMM_WORLD);
         }
     }
 
-#define TRACEBACK
-#ifdef TRACEBACK
+if (proc_rank == 0)
+{
+    #define TRACEBACK
+    #ifdef TRACEBACK
 
-    FILE *fpo = fopen("result.txt", "w");
-    fprintf(fpo, "print traceback value:\n");
+        FILE *fpo = fopen("result.txt", "w");
+        fprintf(fpo, "print traceback value:\n");
 
-    for (int i = max_rows - 2, j = max_rows - 2; i >= 0, j >= 0;)
-    {
-        int nw, n, w, traceback;
-        if (i == max_rows - 2 && j == max_rows - 2)
-            fprintf(fpo, "%d ", input_itemsets[i * max_cols + j]);
-        if (i == 0 && j == 0)
-            break;
-        if (i > 0 && j > 0)
+        for (int i = max_rows - 2, j = max_rows - 2; i >= 0, j >= 0;)
         {
-            nw = input_itemsets[(i - 1) * max_cols + j - 1];
-            w = input_itemsets[i * max_cols + j - 1];
-            n = input_itemsets[(i - 1) * max_cols + j];
+            int nw, n, w, traceback;
+            if (i == max_rows - 2 && j == max_rows - 2)
+                fprintf(fpo, "%d ", input_itemsets[i * max_cols + j]);
+            if (i == 0 && j == 0)
+                break;
+            if (i > 0 && j > 0)
+            {
+                nw = input_itemsets[(i - 1) * max_cols + j - 1];
+                w = input_itemsets[i * max_cols + j - 1];
+                n = input_itemsets[(i - 1) * max_cols + j];
+            }
+            else if (i == 0)
+            {
+                nw = n = LIMIT;
+                w = input_itemsets[i * max_cols + j - 1];
+            }
+            else if (j == 0)
+            {
+                nw = w = LIMIT;
+                n = input_itemsets[(i - 1) * max_cols + j];
+            }
+            else
+            {
+            }
+
+            //traceback = maximum(nw, w, n);
+            int new_nw, new_w, new_n;
+            new_nw = nw + referrence[i * max_cols + j];
+            new_w = w - penalty;
+            new_n = n - penalty;
+
+            traceback = maximum(new_nw, new_w, new_n);
+            if (traceback == new_nw)
+                traceback = nw;
+            if (traceback == new_w)
+                traceback = w;
+            if (traceback == new_n)
+                traceback = n;
+
+            fprintf(fpo, "%d ", traceback);
+
+            if (traceback == nw)
+            {
+                i--;
+                j--;
+                continue;
+            }
+
+            else if (traceback == w)
+            {
+                j--;
+                continue;
+            }
+
+            else if (traceback == n)
+            {
+                i--;
+                continue;
+            }
+
+            else
+                ;
         }
-        else if (i == 0)
-        {
-            nw = n = LIMIT;
-            w = input_itemsets[i * max_cols + j - 1];
-        }
-        else if (j == 0)
-        {
-            nw = w = LIMIT;
-            n = input_itemsets[(i - 1) * max_cols + j];
-        }
-        else
-        {
-        }
 
-        //traceback = maximum(nw, w, n);
-        int new_nw, new_w, new_n;
-        new_nw = nw + referrence[i * max_cols + j];
-        new_w = w - penalty;
-        new_n = n - penalty;
+        fclose(fpo);
 
-        traceback = maximum(new_nw, new_w, new_n);
-        if (traceback == new_nw)
-            traceback = nw;
-        if (traceback == new_w)
-            traceback = w;
-        if (traceback == new_n)
-            traceback = n;
-
-        fprintf(fpo, "%d ", traceback);
-
-        if (traceback == nw)
-        {
-            i--;
-            j--;
-            continue;
-        }
-
-        else if (traceback == w)
-        {
-            j--;
-            continue;
-        }
-
-        else if (traceback == n)
-        {
-            i--;
-            continue;
-        }
-
-        else
-            ;
-    }
-
-    fclose(fpo);
-
-#endif
-
+    #endif
+}
     free(referrence);
     free(input_itemsets);
     free(output_itemsets);
