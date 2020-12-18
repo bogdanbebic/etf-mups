@@ -1,0 +1,8 @@
+./mpi/nw/needle ./mpi/needle 2048 10
+0m0.121s 0m0.409s,0m0.701s,0m1.689s, 1,2,4
+./mpi/nw/needle ./mpi/needle 6144 10
+0m1.400s 0m1.648s,0m4.034s,0m10.144s, 1,2,4
+./mpi/nw/needle ./mpi/needle 16384 10
+0m9.883s 0m10.864s,0m28.354s,1m30.506s, 1,2,4
+./mpi/nw/needle ./mpi/needle 22528 10
+0m19.942s 0m11.429s,0m58.739s,4m54.880s, 1,2,4
