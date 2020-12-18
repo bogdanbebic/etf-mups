@@ -1,0 +1,6 @@
+./mpi/nbody/./nbody ./mpi/nbmw 100 500 0.01 500 g
+0m0.036s 0m0.522s,0m0.506s, 2,4
+./mpi/nbody/./nbody ./mpi/nbmw 500 500 0.01 500 g
+0m0.638s 0m0.907s,0m0.663s, 2,4
+./mpi/nbody/./nbody ./mpi/nbmw 5000 500 0.01 500 g
+1m2.036s 0m41.758s,0m17.717s, 2,4
