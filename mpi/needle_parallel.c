@@ -240,9 +240,21 @@ void runTest(int argc, char **argv)
     }
 
     printf("Processing bottom-right matrix\n");
+
+    int address_offset = 2 * max_cols - 1;
     for (int i = max_cols - 4; i >= 0; i--)
     {
-        MPI_Bcast(input_itemsets, max_rows * max_cols, MPI_INT, 0, MPI_COMM_WORLD);
+        // MPI_Bcast(input_itemsets, max_rows * max_cols, MPI_INT, 0, MPI_COMM_WORLD);
+
+        MPI_Type_vector(i + 3, 1, max_cols - 1, MPI_INT, &diagonal1);
+        MPI_Type_commit(&diagonal1);
+        MPI_Type_vector(i + 2, 1, max_cols - 1, MPI_INT, &diagonal2);
+        MPI_Type_commit(&diagonal2);
+
+        MPI_Bcast(input_itemsets + address_offset - 1, 1, diagonal1, 0, MPI_COMM_WORLD);
+        MPI_Bcast(input_itemsets + address_offset, 1, diagonal2, 0, MPI_COMM_WORLD);
+
+        address_offset += max_cols;
 
         int chunk = (i + 1) / proc_size;
         int idx_start = chunk * proc_rank;
@@ -282,6 +294,9 @@ void runTest(int argc, char **argv)
             MPI_Send(&send_buffer_idx, 1, MPI_INT, 0, TAG_SIZE, MPI_COMM_WORLD);
             MPI_Send(send_buffer, send_buffer_idx, MPI_INT, 0, TAG_RESULT, MPI_COMM_WORLD);
         }
+
+        MPI_Type_free(&diagonal1);
+        MPI_Type_free(&diagonal2);
     }
 
 if (proc_rank == 0)
