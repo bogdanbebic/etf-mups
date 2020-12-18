@@ -95,7 +95,8 @@ void runTest(int argc, char **argv)
     if (!input_itemsets)
         fprintf(stderr, "error: can not allocate memory");
 
-    srand(time(NULL));
+    //srand(time(NULL));
+    srand(0);
 
     for (int i = 0; i < max_cols; i++)
     {
