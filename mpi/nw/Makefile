@@ -2,7 +2,7 @@
 CC = gcc
 CC_FLAGS = -O2 -fopenmp 
 
-needle: 
+needle: needle.c
 	$(CC) $(CC_FLAGS) needle.c -o needle 
 
 clean:
