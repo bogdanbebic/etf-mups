@@ -1,3 +1,16 @@
+#include <mpi.h>
+// #define DEBUG
+#ifdef DEBUG
+#define LOG(fmt, ...)                                      \
+    do                                                     \
+    {                                                      \
+        fprintf(stderr, "%s:%d:%s(): " fmt "\n", __FILE__, \
+                __LINE__, __func__, __VA_ARGS__);          \
+    } while (0)
+#else
+#define LOG(fmt, ...)
+#endif
+
 #define LIMIT -999
 #include <stdlib.h>
 #include <stdio.h>
@@ -5,6 +18,16 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
+
+enum Tags
+{
+    TAG_RESULT = 1000,
+    TAG_SIZE,
+};
+
+int send_buffer_size;
+int send_buffer[45000];
+int proc_size, proc_rank;
 
 void runTest(int argc, char **argv);
 int maximum(int a, int b, int c)
@@ -55,7 +78,14 @@ double gettime()
 
 int main(int argc, char **argv)
 {
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm_size(MPI_COMM_WORLD, &proc_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
+
     runTest(argc, argv);
+
+    MPI_Finalize();
 
     return EXIT_SUCCESS;
 }
@@ -95,7 +125,8 @@ void runTest(int argc, char **argv)
     if (!input_itemsets)
         fprintf(stderr, "error: can not allocate memory");
 
-    srand(time(NULL));
+    // srand(time(NULL));
+    srand(0);
 
     for (int i = 0; i < max_cols; i++)
     {
@@ -132,17 +163,76 @@ void runTest(int argc, char **argv)
     printf("Processing top-left matrix\n");
     for (int i = 0; i < max_cols - 2; i++)
     {
-        for (idx = 0; idx <= i; idx++)
+        /*
+        if (proc_rank == 0)
+        {
+            MPI_Status status;
+            // TODO: something
+            for (int proc_idx = 1; proc_idx < proc_size; proc_idx++)
+                MPI_Send(send_buffer, count, MPI_INT, proc_idx, TAG_DATA, MPI_COMM_WORLD);
+
+            for (int proc_idx = 1; proc_idx < proc_size; proc_idx++)
+            {
+                MPI_Recv(send_buffer, count, MPI_INT, 0, TAG_RESULT, MPI_COMM_WORLD, &status);
+                // TODO: status -> index, save data
+            }
+        }
+        else
+        {
+            MPI_Recv(send_buffer, count, MPI_INT, 0, TAG_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            // TODO: something
+            MPI_Send(send_buffer, count, MPI_INT, 0, TAG_RESULT, MPI_COMM_WORLD);
+        }*/
+
+        MPI_Bcast(input_itemsets, max_rows * max_cols, MPI_INT, 0, MPI_COMM_WORLD);
+
+        int chunk = (i + 1) / proc_size;
+        int idx_start = chunk * proc_rank;
+        int idx_end = idx_start + chunk;
+        if (proc_rank == proc_size - 1)
+        {
+            idx_end = i + 1;
+            // chunk = idx_end - idx_start + 1;
+        }
+
+        int send_buffer_idx = 0;
+        // if (proc_rank < proc_size - 1)
+        //     idx_end--;
+
+        for (idx = idx_start; idx < idx_end; idx++)
         {
             index = (idx + 1) * max_cols + (i + 1 - idx);
+            send_buffer[send_buffer_idx++] = index;
             input_itemsets[index] = maximum(input_itemsets[index - 1 - max_cols] + referrence[index],
                                             input_itemsets[index - 1] - penalty,
                                             input_itemsets[index - max_cols] - penalty);
+            send_buffer[send_buffer_idx++] = input_itemsets[index];
+        }
+
+        if (proc_rank == 0 && proc_size > 1)
+        {
+            int proc_idx;
+            for (proc_idx = 1; proc_idx < proc_size; proc_idx++)
+            {
+                MPI_Recv(&send_buffer_size, 1, MPI_INT, proc_idx, TAG_SIZE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(send_buffer, send_buffer_size, MPI_INT, proc_idx, TAG_RESULT, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                for (int it = 0; it < send_buffer_size - 1; it += 2)
+                {
+                    input_itemsets[send_buffer[it]] = send_buffer[it + 1];
+                }
+            }
+        }
+        else if (proc_rank != 0)
+        {
+            MPI_Send(&send_buffer_idx, 1, MPI_INT, 0, TAG_SIZE, MPI_COMM_WORLD);
+            MPI_Send(send_buffer, send_buffer_idx, MPI_INT, 0, TAG_RESULT, MPI_COMM_WORLD);
         }
     }
+
     printf("Processing bottom-right matrix\n");
     for (int i = max_cols - 4; i >= 0; i--)
     {
+        // TODO
         for (idx = 0; idx <= i; idx++)
         {
             index = (max_cols - idx - 2) * max_cols + idx + max_cols - i - 2;
