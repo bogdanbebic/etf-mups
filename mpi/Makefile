@@ -11,10 +11,10 @@ z2 : dz2z2.c
 	$(CC) $(CFLAGS) -o $(@) $(<) -lm
 
 z3 : dz2z3.c
-	$(CC) $(CFLAGS) -o $(@) $(<) -lm
+	$(CC) $(CFLAGS) -Wno-unused-result -Inbody -o $(@) $(<) -lm
 
 z4 : dz2z4.c
-	$(CC) $(CFLAGS) -o $(@) $(<) -lm
+	$(CC) $(CFLAGS) -Wno-unused-result -Inbody -o $(@) $(<) -lm
 
 pi : pi_parallel.c
 	$(CC) $(CFLAGS) -o $(@) $(<) -lm
