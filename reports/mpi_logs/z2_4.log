@@ -1,0 +1,15 @@
+---------------------Sequential execution---------------------
+Start Needleman-Wunsch
+Start Needleman-Wunsch
+Processing top-left matrix
+Processing top-left matrix
+Processing bottom-right matrix
+----------------------Parallel execution----------------------
+Start Needleman-Wunsch
+Processing top-left matrix
+Processing bottom-right matrix
+Processing bottom-right matrix
+
+Sequential elapsed time: 16.601136s
+Parallel elapsed time: 42.786052s
+Test PASSED
