@@ -1,0 +1,94 @@
+[WTI]
+1. CPU_id, broj pristupa memoriji, hit rate:
+CPU0, 3, 0
+CPU1, 4, 0
+CPU2, 3, 0
+2. Samo memorija se azurira
+3. CPU2 cita blok A0 (u kes memoriji CPU2 je ovaj blok invalid)
+Samo memorija je azurna, memorija dostavlja podatak
+4. Ne vrsi se dohvatanje, podatak se upisuje direktno u memoriju
+5. Umesto direktnog upisa u memoriju, moze se upisivati u lokalni kes 
+cime bi memorija bila nevalidna (kao kod MSI protokola). Na magistralu
+bi morao da se salje signal za invalidaciju ostalih kes memorija,
+ali bi se ovime smanjio broj nepotrebnih pristupa memoriji - npr.
+ako procesor upisuje isti podatak vise puta ili ako samo
+jedan procesor pristupa nekom podatku.
+
+[MSI]
+6. A0 ce biti u stanju Shared (S), jer su oba procesora samo procitala
+podatak, nijedan ga nije menjao
+7. U CPU0 ce A0 postati Invalid (I), jer je CPU1 promenio taj podatak
+8. U ovom slucaju memorija nije azurna, podatak koji se upisuje u kes
+je validan i azuran jedino u kes memoriji procesora koji ga je upisao,
+a u WTI imamo slucaj da se uvek radi azuriranje memorije, sto dovodi do
+toga da uvek imamo pristup memoriji. U MSI imamo pristup memoriji samo
+za prvobitno dohvatanje podatka, posle toga se upisi zavrsavaju na nivou
+kes memorije, a na magistralu se samo salje signal za invalidaciju bloka
+9. U trenutku 8. CPU0 vrsi operaciju citanja bloka A2, pa CPU1 mora da
+dostavi taj podatak na magistralu podataka - kako je podatak vec na magistrali,
+memorija ce isto postati azurna upisujuci u sebe podatak sa magistrale.
+
+[MESI]
+10. Blok A0 ce biti u stanju Exclusive (E), jer je CPU2 jedini procesor
+koji ima blok A0 u svom kesu, a pritom je i u memoriji podatak azuran. U
+koraku 2 blok A0 u kesu CPU2 prelazi u stanje Shared (S), jer vise nije
+jedini CPU koji ima blok A0 u svom kesu
+11. Podatak se dostavlja iz kes memorije CPU1 (cache-to-cache transfer).
+Blok A0 se ucitava u stanju Shared (S).
+12. Zbog direktnog preslikavanja adresa u kes memoriji, blok A1 koji je
+bio u stanju Modified (M) u kesu CPU1 se mora flush-ovati u memoriji da
+bi taj blok bio validan u memoriji. Tek nakon toga se ucitava blok A3 i
+prelazi u stanje Modified (M)
+13. Posto blok A2 nije bio azuran u memoriji, a sada postaje deljen u
+vise kes memorija, i memorija se azurira - kad god je neki podatak u
+stanju Shared (S), memorija mora biti azurna. Podatak dostavlja CPU1
+iz svoje kes memorije (cache-to-cache transfer) jer je jedino kod njega
+podatak u azurnom stanju - u kesu CPU1 blok A2 je bio u stanju Modified (M)
+
+[MOESI]
+14. U CPU1 blok A0 ce biti u stanju Modified (M), u ostalim kesevima blok
+A0 ce biti u stanju Invalid (I). Ovo se desava zato sto A0 menja sadrzaj
+bloka A0, pa se svi ostali kesevi invalidiraju, CPU1 sada jedini ima azurnu
+kopiju bloka A0.
+15. Tokom koraka 7, blok A0 se flush-uje iz kesa CPU1 (da bi se ucitao A2),
+pa se blok A0 posle koraka 7 ni ne nalazi u kes memoriji CPU1. U CPU0 blok A0
+ostaje u stanju Invalid (I), u CPU2 blok A0 ostaje u stanju Shared (S). Tokom
+koraka 7, posto je memorija imala neazurnu kopiju bloka A0 i posto je blok A0
+flush-ovan iz kesa CPU1 gde se nalazio u O stanju, memorija azurira svoju kopiju
+bloka A0
+16. Blok A2 ce u CPU0 biti u stanju Shared (S) jer postoji azurna kopija bloka A2
+u nekoj drugoj kes memoriji.
+17. U koraku 10 ce memorija biti azurirana - blok A2 svakako mora biti na magistrali
+zbog cache-to-cache transfera, pa i memorija moze pokupiti flush-ovani podatak. Ovo
+azuriranje memorije je u ovom slucaju potpuno nepotrebno, jer posle zavrsene operacije
+write od strane CPU2, memorija vise nije azurna, jer blok A2 u CPU2 prelazi u stanje
+Modified (M) i menja vrednost.
+
+[Dragon]
+18. A0 se nalazi u stanju shared clean (Sc) u CPU0 i CPU2, a u stanju shared modified (Sm)
+u CPU1. Vrednost podataka A0 u sve tri CPU je 1 - to je vazeca kopija - memorija nije azurna.
+19. U koraku 5 se ne azurira memorija, CPU1 ima ekskluzivnu kopiju podatka A1 koja je jedina
+validna kopija. U koraku 6 se u memoriji azurira vrednost podatka A1 zato sto se ovaj podatak
+mora zameniti drugim podatkom na istoj liniji kes memorije. Podatak A3 se ucitava na njegovo
+mesto u kesu i sada CPU1 ima ekskluzivnu kopiju podatka A3 koja je jedina validna kopija.
+20. Podatak A2 ce u CPU0 biti u stanju shared clean (Sc) posle citanja u koraku 8.
+21. Blok A1 ce u CPU0 biti ucitan u stanju exclusive (E) - ovo stanje se odredjuje na osnovu
+vrednosti deljene magistrale shared koja u ovom slucaju nije bila postavljena (jer niko drugi
+nije imao A1 u svom kesu).
+
+[Firefly]
+22. Podatak A0 se posle koraka 3 u CPU0 i CPU1 nalazi u stanju Sd (shared & not dirty). To stanje
+oznacava da je podatak deljen medju vise kes kontrolera i da memorija ima azurnu verziju podatka.
+Ekvivalent ovom stanju u Dragon protokolu je stanje shared clean (Sc).
+23. U koraku 3 se azurira memorija, tako funckionise protokol Firefly - pri svakom broadcast-u
+podatka na magistralu se i memorija azurira. Ovime se eliminise Sm stanje Dragon protokola - tu Dragon
+protokolu se podrazumevalo da se kes memorija mnogo brze azurira od glavne memorije, pa se ovo u Dragon
+protokolu nije radilo.
+24. Trazeni podatak A2 je bio azuran samo u kes memoriji CPU1, pa CPU1 dostavlja podatak. Tokom ovog
+broadcast-a podatka na magistralu, memorija se takodje azurira, pa je sada i u memoriji validna kopija
+podatka A2. Kes kontroler CPU1 takodje postavlja shared liniju magistrale kako bi CPU0 znao da treba da
+bude u Shared stanju. CPU1 za podatak A2 zbog azuriranja memorije brise svoj Dirty bit i sada je i on
+samo u Shared stanju.
+25. Nakon koraka 10, memorija je azurna i za podatak A1 i za A2. U svim procesorima koji u svom kesu
+imaju podatak A2 (CPU0, CPU1, CPU2), A2 se nalazi u stanju Sd (Shared & not Dirty) - vise keseva sadrzi
+kopiju i memorija je azurna.
