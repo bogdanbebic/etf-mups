@@ -20,12 +20,12 @@ __global__ void reduce_pi(double *gdata)
     unsigned long long int i = ((unsigned long long int)blockIdx.x) * blockDim.x + threadIdx.x;
 
     double factor = (i % 2 == 0) ? 1.0 : -1.0;
-    sdata[thread_id] = factor / (2 * i + 1);
+    sdata[thread_id] = factor / ((i << 1) + 1);
 
     __syncthreads();
 
     // reduction in shared memory
-    for (unsigned long long int stride = blockDim.x / 2; stride > 32; stride >>= 1)
+    for (unsigned long long int stride = blockDim.x >> 1; stride > 32; stride >>= 1)
     {
         if (thread_id < stride) {
             sdata[thread_id] += sdata[thread_id + stride];
