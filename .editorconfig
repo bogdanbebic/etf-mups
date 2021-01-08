@@ -3,9 +3,8 @@
 # top-most EditorConfig file
 root = true
 
-# Unix-style newlines with a newline ending every file, no trailing whitespace
+# Newline ending every file, no trailing whitespace
 [*]
-end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
