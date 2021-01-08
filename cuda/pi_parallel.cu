@@ -19,7 +19,7 @@ __global__ void reduce_pi(double *gdata)
     unsigned long long int thread_id = threadIdx.x;
     unsigned long long int i = ((unsigned long long int)blockIdx.x) * blockDim.x + threadIdx.x;
 
-    double factor = (i % 2 == 0) ? 1.0 : -1.0;
+    double factor = (i & 1) ? -1.0 : 1.0;
     sdata[thread_id] = factor / ((i << 1) + 1);
 
     __syncthreads();
