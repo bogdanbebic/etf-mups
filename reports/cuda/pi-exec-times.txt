@@ -1,0 +1,10 @@
+./cuda/piCalculation/./piCalc ./cuda/pi 1000000
+0m0.010s 0m0.066s
+./cuda/piCalculation/./piCalc ./cuda/pi 10000000
+0m0.096s 0m0.070s
+./cuda/piCalculation/./piCalc ./cuda/pi 100000000
+0m0.319s 0m0.075s
+./cuda/piCalculation/./piCalc ./cuda/pi 1000000000
+0m3.219s 0m0.156s
+./cuda/piCalculation/./piCalc ./cuda/pi 10000000000
+0m31.872s 0m1.016s
