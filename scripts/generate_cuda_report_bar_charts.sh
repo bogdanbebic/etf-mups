@@ -4,7 +4,9 @@ root_dir=$(realpath `git rev-parse --git-dir`/..)
 python3_venv_dir=${root_dir}/venv
 
 # activate python venv
-source $python3_venv_dir/bin/activate
+if [ -d "$python3_venv_dir" ]; then
+    source $python3_venv_dir/bin/activate
+fi
 
 runfile=$1
 prog_parallel=$2
@@ -25,7 +27,9 @@ done
 
 IFS=$oldIFS
 
-python3 $root_dir/scripts/plot_speedups.py $execution_times_file
+python3 $root_dir/scripts/plot_speedups_cuda.py $execution_times_file
 
 # deactivate python venv
-deactivate
+if [ -d "$python3_venv_dir" ]; then
+    deactivate
+fi
