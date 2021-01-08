@@ -19,7 +19,7 @@ __global__ void reduce_pi(double *gdata)
     const unsigned int thread_id = threadIdx.x;
     const unsigned long long int i = ((unsigned long long int)blockIdx.x) * blockDim.x + threadIdx.x;
 
-    const double factor = (i & 1) ? -1.0 : 1.0;
+    const float factor = (i & 1) ? -1.0f : 1.0f;
     sdata[thread_id] = factor / ((i << 1) + 1);
 
     __syncthreads();
