@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-__device__ void warp_reduce(volatile double *sdata, unsigned long long int thread_id)
+__device__ void warp_reduce(volatile double *sdata, const unsigned int thread_id)
 {
     sdata[thread_id] += sdata[thread_id + 32];
     sdata[thread_id] += sdata[thread_id + 16];
@@ -16,16 +16,16 @@ __global__ void reduce_pi(double *gdata)
 {
     extern __shared__ double sdata[];
 
-    unsigned long long int thread_id = threadIdx.x;
-    unsigned long long int i = ((unsigned long long int)blockIdx.x) * blockDim.x + threadIdx.x;
+    const unsigned int thread_id = threadIdx.x;
+    const unsigned long long int i = ((unsigned long long int)blockIdx.x) * blockDim.x + threadIdx.x;
 
-    double factor = (i % 2 == 0) ? 1.0 : -1.0;
-    sdata[thread_id] = factor / (2 * i + 1);
+    const float factor = (i & 1) ? -1.0f : 1.0f;
+    sdata[thread_id] = factor / ((i << 1) + 1);
 
     __syncthreads();
 
     // reduction in shared memory
-    for (unsigned long long int stride = blockDim.x / 2; stride > 32; stride >>= 1)
+    for (unsigned int stride = blockDim.x >> 1; stride > 32; stride >>= 1)
     {
         if (thread_id < stride) {
             sdata[thread_id] += sdata[thread_id + stride];
