@@ -2,9 +2,11 @@
 #include <stdlib.h>
 #include <math.h>
 
+typedef double float_type;
+
 #define KERNEL_ITERATIONS 1000
 
-__device__ void warp_reduce(volatile double *sdata, const unsigned int thread_id)
+__device__ void warp_reduce(volatile float_type *sdata, const unsigned int thread_id)
 {
     sdata[thread_id] += sdata[thread_id + 32];
     sdata[thread_id] += sdata[thread_id + 16];
@@ -14,14 +16,14 @@ __device__ void warp_reduce(volatile double *sdata, const unsigned int thread_id
     sdata[thread_id] += sdata[thread_id + 1];
 }
 
-__global__ void reduce_pi(double *gdata)
+__global__ void reduce_pi(float_type *gdata)
 {
-    extern __shared__ double sdata[];
+    extern __shared__ float_type sdata[];
 
     const unsigned int thread_id = threadIdx.x;
     const unsigned long long int i = (((unsigned long long int)blockIdx.x) * blockDim.x + threadIdx.x) * KERNEL_ITERATIONS;
 
-    double current_thread_factor = 0.0;
+    float_type current_thread_factor = 0.0f;
     for (int it = 0; it < KERNEL_ITERATIONS; it++)
     {
         const float factor = ((i + it) & 1) ? -1.0f : 1.0f;
@@ -56,8 +58,8 @@ int main(int argc, char *argv[])
     long long n, i;
     double factor = 0.0;
     double sum = 0.0;
-    double *dev_sum;
-    double *cpu_sum;
+    float_type *dev_sum;
+    float_type *cpu_sum;
 
     if (argc != 2)
         Usage(argv[0]);
@@ -70,12 +72,12 @@ int main(int argc, char *argv[])
     long long block_size = 1024;
     long long grid_size = ceil(((double)n / KERNEL_ITERATIONS) / block_size);
 
-    cpu_sum = (double*)calloc(grid_size, sizeof(double));
-    cudaMalloc(&dev_sum, grid_size * sizeof(double));
+    cpu_sum = (float_type*)calloc(grid_size, sizeof(float_type));
+    cudaMalloc(&dev_sum, grid_size * sizeof(float_type));
 
-    reduce_pi<<< grid_size, block_size, block_size * sizeof(double) >>>(dev_sum);
+    reduce_pi<<< grid_size, block_size, block_size * sizeof(float_type) >>>(dev_sum);
 
-    cudaMemcpy(cpu_sum, dev_sum, grid_size * sizeof(double), cudaMemcpyDeviceToHost);
+    cudaMemcpy(cpu_sum, dev_sum, grid_size * sizeof(float_type), cudaMemcpyDeviceToHost);
 
     factor = ((n - 1) % 2 == 0) ? 1.0 : -1.0;
     for (i = 0; i < grid_size; i++)
