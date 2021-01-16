@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 
+#define KERNEL_ITERATIONS 1000
+
 __device__ void warp_reduce(volatile double *sdata, const unsigned int thread_id)
 {
     sdata[thread_id] += sdata[thread_id + 32];
@@ -17,10 +19,16 @@ __global__ void reduce_pi(double *gdata)
     extern __shared__ double sdata[];
 
     const unsigned int thread_id = threadIdx.x;
-    const unsigned long long int i = ((unsigned long long int)blockIdx.x) * blockDim.x + threadIdx.x;
+    const unsigned long long int i = (((unsigned long long int)blockIdx.x) * blockDim.x + threadIdx.x) * KERNEL_ITERATIONS;
 
-    const float factor = (i & 1) ? -1.0f : 1.0f;
-    sdata[thread_id] = factor / ((i << 1) + 1);
+    double current_thread_factor = 0.0;
+    for (int it = 0; it < KERNEL_ITERATIONS; it++)
+    {
+        const float factor = ((i + it) & 1) ? -1.0f : 1.0f;
+        current_thread_factor += factor / (((i + it) << 1) + 1);
+    }
+
+    sdata[thread_id] = current_thread_factor;
 
     __syncthreads();
 
@@ -60,7 +68,7 @@ int main(int argc, char *argv[])
     printf("Before for loop, factor = %f.\n", factor);
 
     long long block_size = 1024;
-    long long grid_size = ceil(((double)n) / block_size);
+    long long grid_size = ceil(((double)n / KERNEL_ITERATIONS) / block_size);
 
     cpu_sum = (double*)calloc(grid_size, sizeof(double));
     cudaMalloc(&dev_sum, grid_size * sizeof(double));
