@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-typedef double float_type;
+typedef float float_type;
 
 #define KERNEL_ITERATIONS 1000
 
