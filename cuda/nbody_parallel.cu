@@ -28,16 +28,6 @@ void Output_state(double time, struct particle_s curr[], int n);
 void Compute_energy(struct particle_s curr[], int n, double *kin_en_p,
                     double *pot_en_p);
 
-__global__ void kernel_init_forces(vect_t *forces, int n)
-{
-    const unsigned long long int thread_id = threadIdx.x + (unsigned long long int)blockIdx.x * blockDim.x;
-    if (thread_id < n)
-    {
-        forces[thread_id][X] = 0;
-        forces[thread_id][Y] = 0;
-    }
-}
-
 __global__ void kernel_compute_force_mat(struct particle_s *curr, vect_t *forces, int n)
 {
     double mg;
@@ -129,7 +119,7 @@ int main(int argc, char *argv[])
     Compute_energy(curr, n, &kinetic_energy, &potential_energy);
     printf("   PE = %e, KE = %e, Total Energy = %e\n",
            potential_energy, kinetic_energy, kinetic_energy + potential_energy);
-    // Output_state(0, curr, n);
+    Output_state(0, curr, n);
 
     const int block_size = 1024;
     const int grid_size = ceil(((double)n) / block_size);
@@ -144,7 +134,7 @@ int main(int argc, char *argv[])
 
     for (int step = 1; step <= n_steps; step++)
     {
-        kernel_init_forces<<< grid_size_mat, block_size >>>(forces_mat, n * n);
+        cudaMemset(forces_mat, 0, n * n * sizeof(vect_t));
 
         kernel_compute_force_mat<<< grid_size, block_size >>>(curr_dev, forces_mat, n);
         kernel_reduce_force_mat<<< grid_size, block_size >>>(forces_mat, n);
@@ -160,7 +150,7 @@ int main(int argc, char *argv[])
     t = n_steps * delta_time;
     Compute_energy(curr, n, &kinetic_energy, &potential_energy);
 
-    // Output_state(t, curr, n);
+    Output_state(t, curr, n);
 
     printf("   PE = %e, KE = %e, Total Energy = %e\n",
            potential_energy, kinetic_energy, kinetic_energy + potential_energy);
