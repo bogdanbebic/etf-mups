@@ -20,7 +20,7 @@ needle : needle_parallel.cu
 	$(CC) $(CFLAGS) -o $(@) $(<) -lm
 
 nb : nbody_parallel.cu
-	$(CC) $(CFLAGS) -Wno-unused-result -Inbody -o $(@) $(<) -lm
+	$(CC) $(CFLAGS) -Inbody -o $(@) $(<) -lm
 
 .PHONY : clean
 clean :
