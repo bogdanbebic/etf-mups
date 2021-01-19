@@ -58,8 +58,8 @@ __global__ void kernel_compute_force_mat(struct particle_s *curr, vect_t *forces
             forces[k][Y] = -f_part_k[Y];
         }
 
-        forces[part][X] += forces_part[X];
-        forces[part][Y] += forces_part[Y];
+        forces[part][X] = forces_part[X];
+        forces[part][Y] = forces_part[Y];
     }
 }
 
