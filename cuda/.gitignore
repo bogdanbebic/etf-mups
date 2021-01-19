@@ -9,3 +9,6 @@ z3
 piCalculation/piCalc
 nw/needle
 nbody/nbody
+
+# Needle output file
+result.txt
