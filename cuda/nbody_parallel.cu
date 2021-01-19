@@ -30,36 +30,30 @@ void Compute_energy(struct particle_s curr[], int n, double *kin_en_p,
 
 __global__ void kernel_compute_force_mat(struct particle_s *curr, vect_t *forces, int n)
 {
-    double mg;
-    vect_t f_part_k;
-    double len, len_3, fact;
+    const unsigned long long int thread_id_i = threadIdx.y + (unsigned long long int)blockIdx.y * blockDim.y;
+    const unsigned long long int thread_id_j = threadIdx.x + (unsigned long long int)blockIdx.x * blockDim.x;
 
-    const unsigned long long int thread_id = threadIdx.x + (unsigned long long int)blockIdx.x * blockDim.x;
-    const unsigned long long part = thread_id * n + thread_id;
-
-    if (thread_id < n)
+    if (thread_id_j < n && thread_id_i < thread_id_j)
     {
-        const struct particle_s curr_part = curr[part % n];
-        vect_t forces_part = { 0, 0 };
-        for (unsigned long long int k = part + 1; k < (thread_id + 1) * n; k++)
-        {
-            f_part_k[X] = curr_part.s[X] - curr[k % n].s[X];
-            f_part_k[Y] = curr_part.s[Y] - curr[k % n].s[Y];
-            len = sqrt(f_part_k[X] * f_part_k[X] + f_part_k[Y] * f_part_k[Y]);
-            len_3 = len * len * len;
-            mg = -G * curr_part.m * curr[k % n].m;
-            fact = mg / len_3;
-            f_part_k[X] *= fact;
-            f_part_k[Y] *= fact;
+        const struct particle_s curr_i = curr[thread_id_i];
+        const struct particle_s curr_j = curr[thread_id_j];
+        vect_t f_part_k;
 
-            forces_part[X] += f_part_k[X];
-            forces_part[Y] += f_part_k[Y];
-            forces[k][X] = -f_part_k[X];
-            forces[k][Y] = -f_part_k[Y];
-        }
+        f_part_k[X] = curr_i.s[X] - curr_j.s[X];
+        f_part_k[Y] = curr_i.s[Y] - curr_j.s[Y];
 
-        forces[part][X] = forces_part[X];
-        forces[part][Y] = forces_part[Y];
+        const double len = sqrt(f_part_k[X] * f_part_k[X] + f_part_k[Y] * f_part_k[Y]);
+        const double len_3 = len * len * len;
+        const double mg = -G * curr_i.m * curr_j.m;
+        const double fact = mg / len_3;
+        f_part_k[X] *= fact;
+        f_part_k[Y] *= fact;
+
+        forces[thread_id_j * n + thread_id_i][X] = f_part_k[X];
+        forces[thread_id_j * n + thread_id_i][Y] = f_part_k[Y];
+
+        forces[thread_id_i * n + thread_id_j][X] = -f_part_k[X];
+        forces[thread_id_i * n + thread_id_j][Y] = -f_part_k[Y];
     }
 }
 
@@ -123,7 +117,6 @@ int main(int argc, char *argv[])
 
     const int block_size = 1024;
     const int grid_size = ceil(((double)n) / block_size);
-    const int grid_size_mat = ceil((double) n * n / block_size);
 
     struct particle_s *curr_dev;
     vect_t *forces_mat;
@@ -132,11 +125,16 @@ int main(int argc, char *argv[])
 
     cudaMemcpy(curr_dev, curr, n * sizeof(struct particle_s), cudaMemcpyHostToDevice);
 
+    const dim3 block_size_mat(32, 32, 1);
+    const size_t grid_cols = (n + block_size_mat.x - 1) / block_size_mat.x;
+    const size_t grid_rows = (n + block_size_mat.y - 1) / block_size_mat.y;
+    const dim3 grid_size_mat(grid_cols, grid_rows, 1);
+
     for (int step = 1; step <= n_steps; step++)
     {
         cudaMemset(forces_mat, 0, n * n * sizeof(vect_t));
 
-        kernel_compute_force_mat<<< grid_size, block_size >>>(curr_dev, forces_mat, n);
+        kernel_compute_force_mat<<< grid_size_mat, block_size_mat >>>(curr_dev, forces_mat, n);
         kernel_reduce_force_mat<<< grid_size, block_size >>>(forces_mat, n);
 
         kernel_update_part<<< grid_size, block_size >>>(curr_dev, forces_mat, n, delta_time);
