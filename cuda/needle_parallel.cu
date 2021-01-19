@@ -116,7 +116,7 @@ __global__ void kernel_top_left_processing(int *input_itemsets, int *reference, 
     const thread_idx_t tid = threadIdx.x;
 
     const int index = (thread_idx + 1) * num_cols + (i + 1 - thread_idx);
-    s_input_itemsets_nw[tid] = input_itemsets[index - 1 - num_cols];
+    s_input_itemsets_nw[tid] = input_itemsets[index - 1 - num_cols] + reference[index];
     s_input_itemsets_w[tid + 1] = input_itemsets[index - 1];
 
     if (tid == 0)
@@ -126,7 +126,7 @@ __global__ void kernel_top_left_processing(int *input_itemsets, int *reference, 
 
     if (thread_idx <= i)
     {
-        input_itemsets[index] = maximum_dev(s_input_itemsets_nw[tid] + reference[index],
+        input_itemsets[index] = maximum_dev(s_input_itemsets_nw[tid],
             s_input_itemsets_w[tid + 1] - penalty,
             s_input_itemsets_w[tid] - penalty);
     }
@@ -139,7 +139,7 @@ __global__ void kernel_bottom_right_processing(int *input_itemsets, int *referen
     const thread_idx_t tid = threadIdx.x;
     const int index = (num_cols - thread_idx - 2) * num_cols + thread_idx + num_cols - i - 2;
 
-    s_input_itemsets_nw[tid] = input_itemsets[index - 1 - num_cols];
+    s_input_itemsets_nw[tid] = input_itemsets[index - 1 - num_cols] + reference[index];
     s_input_itemsets_n[tid + 1] = input_itemsets[index - num_cols];
 
     if (tid == 0)
@@ -148,7 +148,7 @@ __global__ void kernel_bottom_right_processing(int *input_itemsets, int *referen
     __syncthreads();
 
     if (thread_idx <= i) {
-        input_itemsets[index] = maximum_dev(s_input_itemsets_nw[tid] + reference[index],
+        input_itemsets[index] = maximum_dev(s_input_itemsets_nw[tid],
             s_input_itemsets_n[tid + 1] - penalty,
             s_input_itemsets_n[tid] - penalty);
     }
