@@ -1,6 +1,6 @@
 ./cuda/nbody/./nbody ./cuda/nb 100 500 0.01 500 g
-0m0.035s 0m0.189s
+0m0.038s 0m0.114s
 ./cuda/nbody/./nbody ./cuda/nb 500 500 0.01 500 g
-0m0.846s 0m0.835s
+0m0.865s 0m0.275s
 ./cuda/nbody/./nbody ./cuda/nb 5000 500 0.01 500 g
-1m20.051s 0m13.337s
+1m20.024s 0m6.863s
