@@ -68,6 +68,34 @@ void usage(int argc, char **argv)
     exit(1);
 }
 
+typedef int thread_idx_t;
+
+__global__ void kernel_init_reference(int *reference, int *blosum62, int *input_itemsets, int num_rows, int num_cols)
+{
+    const thread_idx_t thread_idx_i = threadIdx.y + (thread_idx_t)blockIdx.y * blockDim.y;
+    const thread_idx_t thread_idx_j = threadIdx.x + (thread_idx_t)blockIdx.x * blockDim.x;
+
+    if (thread_idx_i < num_rows && thread_idx_j < num_cols)
+        reference[thread_idx_i * num_cols + thread_idx_j] =
+            blosum62
+            [
+                input_itemsets[thread_idx_i * num_cols]
+            * 24 +
+                input_itemsets[thread_idx_j]
+            ];
+}
+
+__global__ void kernel_init_input_itemsets(int *input_itemsets, int num_cols, int penalty)
+{
+    const thread_idx_t thread_idx = threadIdx.x + (thread_idx_t)blockIdx.x * blockDim.x;
+
+    if (thread_idx < num_cols)
+    {
+        input_itemsets[thread_idx * num_cols] = -thread_idx * penalty;
+        input_itemsets[thread_idx] = -thread_idx * penalty;
+    }
+}
+
 void runTest(int argc, char **argv)
 {
     int max_rows, max_cols, penalty, idx, index;
@@ -105,18 +133,29 @@ void runTest(int argc, char **argv)
         input_itemsets[j] = rand() % 10 + 1;
     }
 
-    for (int i = 1; i < max_cols; i++)
-    {
-        for (int j = 1; j < max_rows; j++)
-        {
-            reference[i * max_cols + j] = blosum62[input_itemsets[i * max_cols]][input_itemsets[j]];
-        }
-    }
+    int *reference_dev;
+    int *input_itemsets_dev;
+    int *blosum62_dev;
 
-    for (int i = 1; i < max_rows; i++)
-        input_itemsets[i * max_cols] = -i * penalty;
-    for (int j = 1; j < max_cols; j++)
-        input_itemsets[j] = -j * penalty;
+    const size_t size = max_rows * max_cols * sizeof(int);
+
+    cudaMalloc(&reference_dev, size);
+    cudaMalloc(&input_itemsets_dev, size);
+    cudaMalloc(&blosum62_dev, sizeof(blosum62));
+
+    cudaMemcpy(input_itemsets_dev, input_itemsets, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(blosum62_dev, blosum62, sizeof(blosum62), cudaMemcpyHostToDevice);
+
+    const dim3 block_size(32, 32, 1);
+    const size_t grid_cols = (max_cols + block_size.x - 1) / block_size.x;
+    const size_t grid_rows = (max_rows + block_size.y - 1) / block_size.y;
+    const dim3 grid_size(grid_cols, grid_rows, 1);
+    kernel_init_reference<<< grid_size, block_size >>>(reference_dev, blosum62_dev, input_itemsets_dev, max_rows, max_cols);
+
+    kernel_init_input_itemsets<<< ceil(max_cols / 1024.0), 1024 >>>(input_itemsets_dev, max_cols, penalty);
+
+    cudaMemcpy(reference, reference_dev, size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(input_itemsets, input_itemsets_dev, size, cudaMemcpyDeviceToHost);
 
     printf("Processing top-left matrix\n");
     for (int i = 0; i < max_cols - 2; i++)
@@ -140,6 +179,13 @@ void runTest(int argc, char **argv)
                                             input_itemsets[index - max_cols] - penalty);
         }
     }
+
+    // cudaMemcpy(input_itemsets, input_itemsets_dev, size, cudaMemcpyDeviceToHost);
+    // cudaMemcpy(reference, reference_dev, size, cudaMemcpyDeviceToHost);
+
+    cudaFree(reference_dev);
+    cudaFree(input_itemsets_dev);
+    cudaFree(blosum62_dev);
 
 #define TRACEBACK
 #ifdef TRACEBACK
