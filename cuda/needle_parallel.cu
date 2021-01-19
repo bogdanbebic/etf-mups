@@ -71,10 +71,7 @@ void usage(int argc, char **argv)
 void runTest(int argc, char **argv)
 {
     int max_rows, max_cols, penalty, idx, index;
-    int *input_itemsets, *output_itemsets, *referrence;
-    int *matrix_cuda, *matrix_cuda_out, *referrence_cuda;
-    int size;
-    int omp_num_threads;
+    int *input_itemsets, *reference;
 
     if (argc == 3)
     {
@@ -88,22 +85,14 @@ void runTest(int argc, char **argv)
 
     max_rows = max_rows + 1;
     max_cols = max_cols + 1;
-    referrence = (int *)malloc(max_rows * max_cols * sizeof(int));
-    input_itemsets = (int *)malloc(max_rows * max_cols * sizeof(int));
-    output_itemsets = (int *)malloc(max_rows * max_cols * sizeof(int));
+    reference = (int *)malloc(max_rows * max_cols * sizeof(int));
+    input_itemsets = (int *)calloc(max_rows * max_cols, sizeof(int));
 
     if (!input_itemsets)
         fprintf(stderr, "error: can not allocate memory");
 
-    srand(time(NULL));
-
-    for (int i = 0; i < max_cols; i++)
-    {
-        for (int j = 0; j < max_rows; j++)
-        {
-            input_itemsets[i * max_cols + j] = 0;
-        }
-    }
+    // srand(time(NULL));
+    srand(0);
 
     printf("Start Needleman-Wunsch\n");
 
@@ -120,7 +109,7 @@ void runTest(int argc, char **argv)
     {
         for (int j = 1; j < max_rows; j++)
         {
-            referrence[i * max_cols + j] = blosum62[input_itemsets[i * max_cols]][input_itemsets[j]];
+            reference[i * max_cols + j] = blosum62[input_itemsets[i * max_cols]][input_itemsets[j]];
         }
     }
 
@@ -135,7 +124,7 @@ void runTest(int argc, char **argv)
         for (idx = 0; idx <= i; idx++)
         {
             index = (idx + 1) * max_cols + (i + 1 - idx);
-            input_itemsets[index] = maximum(input_itemsets[index - 1 - max_cols] + referrence[index],
+            input_itemsets[index] = maximum(input_itemsets[index - 1 - max_cols] + reference[index],
                                             input_itemsets[index - 1] - penalty,
                                             input_itemsets[index - max_cols] - penalty);
         }
@@ -146,7 +135,7 @@ void runTest(int argc, char **argv)
         for (idx = 0; idx <= i; idx++)
         {
             index = (max_cols - idx - 2) * max_cols + idx + max_cols - i - 2;
-            input_itemsets[index] = maximum(input_itemsets[index - 1 - max_cols] + referrence[index],
+            input_itemsets[index] = maximum(input_itemsets[index - 1 - max_cols] + reference[index],
                                             input_itemsets[index - 1] - penalty,
                                             input_itemsets[index - max_cols] - penalty);
         }
@@ -181,13 +170,10 @@ void runTest(int argc, char **argv)
             nw = w = LIMIT;
             n = input_itemsets[(i - 1) * max_cols + j];
         }
-        else
-        {
-        }
 
         //traceback = maximum(nw, w, n);
         int new_nw, new_w, new_n;
-        new_nw = nw + referrence[i * max_cols + j];
+        new_nw = nw + reference[i * max_cols + j];
         new_w = w - penalty;
         new_n = n - penalty;
 
@@ -219,16 +205,12 @@ void runTest(int argc, char **argv)
             i--;
             continue;
         }
-
-        else
-            ;
     }
 
     fclose(fpo);
 
 #endif
 
-    free(referrence);
+    free(reference);
     free(input_itemsets);
-    free(output_itemsets);
 }
