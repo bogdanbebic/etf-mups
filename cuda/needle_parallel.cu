@@ -110,30 +110,53 @@ __global__ void kernel_init_input_itemsets(int *input_itemsets, int num_cols, in
 }
 
 __global__ void kernel_top_left_processing(int *input_itemsets, int *reference, int num_cols, int i, int penalty) {
+    __shared__ int s_input_itemsets_nw[1024];
+    __shared__ int s_input_itemsets_w[1025];
     const thread_idx_t thread_idx = threadIdx.x + (thread_idx_t)blockIdx.x * blockDim.x;
+    const thread_idx_t tid = threadIdx.x;
 
-    if (thread_idx <= i) {
-        int index = (thread_idx + 1) * num_cols + (i + 1 - thread_idx);
-        input_itemsets[index] = maximum_dev(input_itemsets[index - 1 - num_cols] + reference[index],
-            input_itemsets[index - 1] - penalty,
-            input_itemsets[index - num_cols] - penalty);
+    const int index = (thread_idx + 1) * num_cols + (i + 1 - thread_idx);
+    s_input_itemsets_nw[tid] = input_itemsets[index - 1 - num_cols];
+    s_input_itemsets_w[tid + 1] = input_itemsets[index - 1];
+
+    if (tid == 0)
+        s_input_itemsets_w[0] = input_itemsets[index - num_cols];
+
+    __syncthreads();
+
+    if (thread_idx <= i)
+    {
+        input_itemsets[index] = maximum_dev(s_input_itemsets_nw[tid] + reference[index],
+            s_input_itemsets_w[tid + 1] - penalty,
+            s_input_itemsets_w[tid] - penalty);
     }
 }
 
 __global__ void kernel_bottom_right_processing(int *input_itemsets, int *reference, int num_cols, int i, int penalty) {
+    __shared__ int s_input_itemsets_nw[1024];
+    __shared__ int s_input_itemsets_n[1025];
     const thread_idx_t thread_idx = threadIdx.x + (thread_idx_t)blockIdx.x * blockDim.x;
+    const thread_idx_t tid = threadIdx.x;
+    const int index = (num_cols - thread_idx - 2) * num_cols + thread_idx + num_cols - i - 2;
+
+    s_input_itemsets_nw[tid] = input_itemsets[index - 1 - num_cols];
+    s_input_itemsets_n[tid + 1] = input_itemsets[index - num_cols];
+
+    if (tid == 0)
+        s_input_itemsets_n[0] = input_itemsets[index - 1];
+
+    __syncthreads();
 
     if (thread_idx <= i) {
-        int index = (num_cols - thread_idx - 2) * num_cols + thread_idx + num_cols - i - 2;
-        input_itemsets[index] = maximum_dev(input_itemsets[index - 1 - num_cols] + reference[index],
-            input_itemsets[index - 1] - penalty,
-            input_itemsets[index - num_cols] - penalty);
+        input_itemsets[index] = maximum_dev(s_input_itemsets_nw[tid] + reference[index],
+            s_input_itemsets_n[tid + 1] - penalty,
+            s_input_itemsets_n[tid] - penalty);
     }
 }
 
 void runTest(int argc, char **argv)
 {
-    int max_rows, max_cols, penalty, idx, index;
+    int max_rows, max_cols, penalty;
     int *input_itemsets, *reference;
 
     if (argc == 3)
@@ -148,7 +171,7 @@ void runTest(int argc, char **argv)
 
     max_rows = max_rows + 1;
     max_cols = max_cols + 1;
-    reference = (int *)malloc(max_rows * max_cols * sizeof(int));
+    cudaMallocHost(&reference, max_rows * max_cols * sizeof(int));
     input_itemsets = (int *)calloc(max_rows * max_cols, sizeof(int));
 
     if (!input_itemsets)
@@ -172,6 +195,10 @@ void runTest(int argc, char **argv)
     int *input_itemsets_dev;
     int *blosum62_dev;
 
+    cudaStream_t reference_copy_stream;
+
+    cudaStreamCreateWithFlags(&reference_copy_stream, cudaStreamNonBlocking);
+
     const size_t size = max_rows * max_cols * sizeof(int);
 
     cudaMalloc(&reference_dev, size);
@@ -188,6 +215,7 @@ void runTest(int argc, char **argv)
 
     kernel_init_reference<<< grid_size, block_size >>>(reference_dev, blosum62_dev, input_itemsets_dev, max_rows, max_cols);
 
+    cudaMemcpyAsync(reference, reference_dev, size, cudaMemcpyDeviceToHost, reference_copy_stream);
     kernel_init_input_itemsets<<< ceil(max_cols / 1024.0), 1024 >>>(input_itemsets_dev, max_cols, penalty);
 
     printf("Processing top-left matrix\n");
@@ -203,7 +231,8 @@ void runTest(int argc, char **argv)
     }
 
     cudaMemcpy(input_itemsets, input_itemsets_dev, size, cudaMemcpyDeviceToHost);
-    cudaMemcpy(reference, reference_dev, size, cudaMemcpyDeviceToHost);
+
+    cudaStreamDestroy(reference_copy_stream);
 
     cudaFree(reference_dev);
     cudaFree(input_itemsets_dev);
@@ -279,6 +308,6 @@ void runTest(int argc, char **argv)
 
 #endif
 
-    free(reference);
+    cudaFreeHost(reference);
     free(input_itemsets);
 }
