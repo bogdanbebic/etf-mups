@@ -20,6 +20,19 @@ int maximum(int a, int b, int c)
         return (k);
 }
 
+__device__ int maximum_dev(int a, int b, int c)
+{
+    int k;
+    if (a <= b)
+        k = b;
+    else
+        k = a;
+    if (k <= c)
+        return (c);
+    else
+        return (k);
+}
+
 int blosum62[24][24] = {
     {4, -1, -2, -2, 0, -1, -1, 0, -2, -1, -1, -1, -1, -2, -1, 1, 0, -3, -2, 0, -2, -1, 0, -4},
     {-1, 5, 0, -2, -3, 1, 0, -2, 0, -3, -2, 2, -1, -3, -2, -1, -1, -3, -2, -3, -1, 0, -1, -4},
@@ -96,6 +109,28 @@ __global__ void kernel_init_input_itemsets(int *input_itemsets, int num_cols, in
     }
 }
 
+__global__ void kernel_top_left_processing(int *input_itemsets, int *reference, int num_cols, int i, int penalty) {
+    const thread_idx_t thread_idx = threadIdx.x + (thread_idx_t)blockIdx.x * blockDim.x;
+
+    if (thread_idx <= i) {
+        int index = (thread_idx + 1) * num_cols + (i + 1 - thread_idx);
+        input_itemsets[index] = maximum_dev(input_itemsets[index - 1 - num_cols] + reference[index],
+            input_itemsets[index - 1] - penalty,
+            input_itemsets[index - num_cols] - penalty);
+    }
+}
+
+__global__ void kernel_bottom_right_processing(int *input_itemsets, int *reference, int num_cols, int i, int penalty) {
+    const thread_idx_t thread_idx = threadIdx.x + (thread_idx_t)blockIdx.x * blockDim.x;
+
+    if (thread_idx <= i) {
+        int index = (num_cols - thread_idx - 2) * num_cols + thread_idx + num_cols - i - 2;
+        input_itemsets[index] = maximum_dev(input_itemsets[index - 1 - num_cols] + reference[index],
+            input_itemsets[index - 1] - penalty,
+            input_itemsets[index - num_cols] - penalty);
+    }
+}
+
 void runTest(int argc, char **argv)
 {
     int max_rows, max_cols, penalty, idx, index;
@@ -150,38 +185,25 @@ void runTest(int argc, char **argv)
     const size_t grid_cols = (max_cols + block_size.x - 1) / block_size.x;
     const size_t grid_rows = (max_rows + block_size.y - 1) / block_size.y;
     const dim3 grid_size(grid_cols, grid_rows, 1);
+
     kernel_init_reference<<< grid_size, block_size >>>(reference_dev, blosum62_dev, input_itemsets_dev, max_rows, max_cols);
 
     kernel_init_input_itemsets<<< ceil(max_cols / 1024.0), 1024 >>>(input_itemsets_dev, max_cols, penalty);
 
-    cudaMemcpy(reference, reference_dev, size, cudaMemcpyDeviceToHost);
-    cudaMemcpy(input_itemsets, input_itemsets_dev, size, cudaMemcpyDeviceToHost);
-
     printf("Processing top-left matrix\n");
     for (int i = 0; i < max_cols - 2; i++)
     {
-        for (idx = 0; idx <= i; idx++)
-        {
-            index = (idx + 1) * max_cols + (i + 1 - idx);
-            input_itemsets[index] = maximum(input_itemsets[index - 1 - max_cols] + reference[index],
-                                            input_itemsets[index - 1] - penalty,
-                                            input_itemsets[index - max_cols] - penalty);
-        }
+        kernel_top_left_processing<<<ceil((i + 1) / 1024.0), 1024>>>(input_itemsets_dev, reference_dev, max_cols, i, penalty);
     }
+
     printf("Processing bottom-right matrix\n");
     for (int i = max_cols - 4; i >= 0; i--)
     {
-        for (idx = 0; idx <= i; idx++)
-        {
-            index = (max_cols - idx - 2) * max_cols + idx + max_cols - i - 2;
-            input_itemsets[index] = maximum(input_itemsets[index - 1 - max_cols] + reference[index],
-                                            input_itemsets[index - 1] - penalty,
-                                            input_itemsets[index - max_cols] - penalty);
-        }
+        kernel_bottom_right_processing<<<ceil((i + 1) / 1024.0), 1024>>>(input_itemsets_dev, reference_dev, max_cols, i, penalty);
     }
 
-    // cudaMemcpy(input_itemsets, input_itemsets_dev, size, cudaMemcpyDeviceToHost);
-    // cudaMemcpy(reference, reference_dev, size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(input_itemsets, input_itemsets_dev, size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(reference, reference_dev, size, cudaMemcpyDeviceToHost);
 
     cudaFree(reference_dev);
     cudaFree(input_itemsets_dev);
