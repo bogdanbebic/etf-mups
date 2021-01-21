@@ -4,14 +4,14 @@ CFLAGS =
 .PHONY : all
 all : z1 z2 z3
 
-z1 : dz4z1.c
+z1 : dz4z1.cu
 	$(CC) $(CFLAGS) -o $(@) $(<) -lm
 
-z2 : dz4z2.c
+z2 : dz4z2.cu
 	$(CC) $(CFLAGS) -o $(@) $(<)
 
-z3 : dz4z3.c
-	$(CC) $(CFLAGS) -Wno-unused-result -Inbody -o $(@) $(<) -lm
+z3 : dz4z3.cu
+	$(CC) $(CFLAGS) -Inbody -o $(@) $(<) -lm
 
 pi : pi_parallel.cu
 	$(CC) $(CFLAGS) -o $(@) $(<) -lm
