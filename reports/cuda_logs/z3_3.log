@@ -1,0 +1,12 @@
+---------------------Sequential execution---------------------
+   PE = -6.751832e+38, KE = 1.125000e+37, Total Energy = -6.639332e+38
+   PE = -6.649074e+38, KE = 2.481116e+36, Total Energy = -6.624263e+38
+Elapsed time = 1.625907e+02 seconds
+----------------------Parallel execution----------------------
+   PE = -6.751832e+38, KE = 1.125000e+37, Total Energy = -6.639332e+38
+   PE = -6.649074e+38, KE = 2.481116e+36, Total Energy = -6.624263e+38
+Elapsed time = 6.687269e+00 seconds
+
+Sequential elapsed time: 162.589359s
+Parallel elapsed time: 6.687247s
+Test PASSED
