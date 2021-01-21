@@ -1,0 +1,8 @@
+./cuda/nw/./needle ./cuda/needle 2048 10
+0m0.218328s 0m0.074034s
+./cuda/nw/./needle ./cuda/needle 6144 10
+0m1.993039s 0m0.357515s
+./cuda/nw/./needle ./cuda/needle 16384 10
+0m14.725623s 0m1.706326s
+./cuda/nw/./needle ./cuda/needle 22528 10
+0m28.038922s 0m3.455601s
