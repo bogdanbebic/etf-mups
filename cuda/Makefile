@@ -11,7 +11,7 @@ z2 : dz4z2.cu
 	$(CC) $(CFLAGS) -o $(@) $(<)
 
 z3 : dz4z3.cu
-	$(CC) $(CFLAGS) -Wno-unused-result -Inbody -o $(@) $(<) -lm
+	$(CC) $(CFLAGS) -Inbody -o $(@) $(<) -lm
 
 pi : pi_parallel.cu
 	$(CC) $(CFLAGS) -o $(@) $(<) -lm
